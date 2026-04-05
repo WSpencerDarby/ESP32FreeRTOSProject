@@ -1,27 +1,37 @@
 #include <Arduino.h>
 
-// put function declarations here:
-int myFunction(int, int);
+#define LED_PIN 13
 
-#define LED 13
+TaskHandle_t BlinkTaskHandle = NULL;
+
+void BlinkTask(void *parameter) {
+  for(;;) {
+    digitalWrite(LED_PIN,HIGH);
+    Serial.println("LED is on");
+    vTaskDelay(1000/portTICK_PERIOD_MS);
+    digitalWrite(LED_PIN,LOW);
+    Serial.println("LED is off");
+    vTaskDelay(1000/portTICK_PERIOD_MS);
+    Serial.print("Task running on core ");
+    Serial.println(xPortGetCoreID());
+  }
+}
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(115200);
-  pinMode(LED, OUTPUT);
+  pinMode(LED_PIN,OUTPUT);
+
+  xTaskCreatePinnedToCore(
+    BlinkTask,
+    "BlinkTask",
+    10000,
+    NULL,
+    1,
+    &BlinkTaskHandle,
+    1
+  );
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  digitalWrite(LED, HIGH);
-  Serial.println("LED is on");
-  delay(1000);
-  digitalWrite(LED, LOW);
-  Serial.println("LED is off");
-  delay(1000);
-}
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
 }
