@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "tasks/task_definitions.h"
+#include "http_status_server.h"
 #include "config/config.h"
 
 void setup() {
@@ -16,6 +17,9 @@ void setup() {
   Serial.println("==========================================\n");
   
   // Create tasks and pin them to specific cores
+  TaskHandle_t ledPatternTaskHandle = nullptr;
+  TaskHandle_t brightnessTaskHandle = nullptr;
+  TaskHandle_t morseTaskHandle = nullptr;
   
   // Create LED Pattern Task on Core 0 (high priority for button responsiveness)
   xTaskCreatePinnedToCore(
@@ -24,7 +28,7 @@ void setup() {
     LED_PATTERN_TASK_STACK_SIZE, // Stack size
     NULL,                        // Task parameters
     LED_PATTERN_TASK_PRIORITY,   // Priority
-    NULL,                        // Task handle (optional)
+    &ledPatternTaskHandle,       // Task handle (optional)
     LED_PATTERN_TASK_CORE        // Core ID
   );
   
@@ -35,7 +39,7 @@ void setup() {
     BRIGHTNESS_TASK_STACK_SIZE,
     NULL,
     BRIGHTNESS_TASK_PRIORITY,
-    NULL,
+    &brightnessTaskHandle,
     BRIGHTNESS_TASK_CORE
   );
   
@@ -46,9 +50,15 @@ void setup() {
     MORSE_TASK_STACK_SIZE,
     NULL,
     MORSE_TASK_PRIORITY,
-    NULL,
+    &morseTaskHandle,
     MORSE_TASK_CORE
   );
+
+  setStatusTaskHandles(ledPatternTaskHandle, brightnessTaskHandle, morseTaskHandle);
+
+  // Setup WIFI Connection
+  connectToWifi();
+  startHttpStatusServer();
   
   Serial.println("All tasks created successfully!");
   Serial.println("System running...\n");
