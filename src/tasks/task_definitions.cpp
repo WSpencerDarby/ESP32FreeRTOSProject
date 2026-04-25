@@ -81,7 +81,7 @@ void LEDPatternTask(void *pvParameters) {
                     patternStep++;
                     break;
                     
-                case 3:  // Wave (left to right, then right to left)
+                case 3: {  // Wave (left to right, then right to left)
                     int pos = patternStep % 6;
                     digitalWrite(LED1_PIN, (pos == 0 || pos == 5) ? HIGH : LOW);
                     digitalWrite(LED2_PIN, (pos == 1 || pos == 4) ? HIGH : LOW);
@@ -89,8 +89,9 @@ void LEDPatternTask(void *pvParameters) {
                     digitalWrite(LED4_PIN, pos == 3 ? HIGH : LOW);
                     patternStep++;
                     break;
+                }
                     
-                case 4:  // All blinking together
+                case 4: {  // All blinking together
                     bool state = (patternStep % 2 == 0);
                     digitalWrite(LED1_PIN, state);
                     digitalWrite(LED2_PIN, state);
@@ -98,6 +99,7 @@ void LEDPatternTask(void *pvParameters) {
                     digitalWrite(LED4_PIN, state);
                     patternStep++;
                     break;
+                }
             }
         }
         
