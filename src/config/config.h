@@ -34,8 +34,8 @@
 #define MORSE_WORD_GAP 1400       // Gap between words
 
 // Ethernet Attributes
-#define WIFI_SSID "aeiou" //"Spencer’s Phone"
-#define WIFI_PASSWORD "!!! JesusIsMyLord !!!" //"1234ABCD"
+#define WIFI_SSID "Spencer’s Phone"
+#define WIFI_PASSWORD "1234ABCD"
 
 // ========== Task Configuration ==========
 
