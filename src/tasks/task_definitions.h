@@ -27,4 +27,11 @@ void BrightnessControlTask(void *pvParameters);
  */
 void MorseCodeTask(void *pvParameters);
 
+/*
+ * Date Time Task
+ * Prints out the date/time every 10 seconds; button press changes timezone
+ * Demonstrates: button debouncing, RTC
+ */
+void DateTimeTask(void *pvParameters);
+
 #endif // TASK_DEFINITIONS_H

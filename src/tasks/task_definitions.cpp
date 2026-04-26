@@ -1,5 +1,7 @@
 #include "task_definitions.h"
 #include "../config/config.h"
+#include "time.h"
+#include <string>
 
 // Global variable for button state (shared between tasks if needed)
 static volatile int currentPattern = 0;
@@ -227,4 +229,72 @@ void MorseCodeTask(void *pvParameters) {
         // Wait before repeating
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
+}
+
+/*
+* Date Time Task
+* 
+* Prints the current date/time to Serial
+* 
+* On button press, changes between time zones:
+*   0: UTC
+*   1: UTC-8 (Pacific Daylight Time)
+*   2: UTC-7 (Mountain Daylight Time)
+*   3: UTC-6 (Central Daylight Time)
+*   4: UTC-5 (Eastern Daylight Time)
+*
+*/
+void DateTimeTask(void *pvParameters) {
+
+    //Variables to configure the time on the device
+    const char* ntpServer = "pool.ntp.org";
+    int utcOffsetSec;
+    int daylightOffsetSec = 3600;
+    String timeZone;
+
+    while(1) {
+        //Set the UTC/GMT Offset (in seconds)
+        switch(currentPattern){
+            case 1:
+                utcOffsetSec = -8 * 3600;
+                timeZone = "Pacific Daylight Time (PDT)";
+                break;
+            case 2:
+                utcOffsetSec = -7 * 3600;
+                timeZone = "Mountain Daylight Time (MDT)";
+                break;
+            case 3:
+                utcOffsetSec = -6 * 3600;
+                timeZone = "Central Daylight Time (CDT)";
+                break;
+            case 4:
+                utcOffsetSec = -5 * 3600;
+                timeZone = "Eastern Daylight Time (EDT)";
+                break;
+            default:
+                utcOffsetSec = 0;
+                timeZone = "Coordinated Universal Time (UTC)";
+                break;
+        }
+
+        // Configure the time
+        configTime(utcOffsetSec, daylightOffsetSec, ntpServer);
+
+        // Print the time
+        struct tm timeInfo;
+        if(!getLocalTime(&timeInfo)){
+            Serial.println("No time available");
+            return;
+        }
+
+        Serial.println("\n=====================================");
+        Serial.println(&timeInfo, "%A, %B, %d %Y %I:%M %p");
+        Serial.println(timeZone);
+        Serial.println("=====================================\n");
+
+        // Wait before repeating
+        vTaskDelay(pdMS_TO_TICKS(10000));
+
+    }
+
 }

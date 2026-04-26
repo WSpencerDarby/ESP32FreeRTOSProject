@@ -34,8 +34,8 @@
 #define MORSE_WORD_GAP 1400       // Gap between words
 
 // Ethernet Attributes
-#define WIFI_SSID "Spencer’s Phone"
-#define WIFI_PASSWORD "1234ABCD"
+#define WIFI_SSID "aeiou" //"Spencer’s Phone"
+#define WIFI_PASSWORD "!!! JesusIsMyLord !!!" //"1234ABCD"
 
 // ========== Task Configuration ==========
 
@@ -43,20 +43,24 @@
 #define LED_PATTERN_TASK_PRIORITY    2
 #define BRIGHTNESS_TASK_PRIORITY     2
 #define MORSE_TASK_PRIORITY          1
+#define DATETIME_TASK_PRIORITY       1
 
 // Task Stack Sizes (in bytes)
 #define LED_PATTERN_TASK_STACK_SIZE  2048
 #define BRIGHTNESS_TASK_STACK_SIZE   2048
 #define MORSE_TASK_STACK_SIZE        2048
+#define DATETIME_TASK_STACK_SIZE     2048
 
 // Task Core Assignment (ESP32 has cores 0 and 1)
 #define LED_PATTERN_TASK_CORE        0  // Button handling on core 0
 #define BRIGHTNESS_TASK_CORE         1  // Analog reading on core 1
 #define MORSE_TASK_CORE              0  // Timing-critical on core 0
+#define DATETIME_TASK_CORE           1  // date/time on core 1
 
 // Task Periods (in milliseconds)
 #define LED_PATTERN_PERIOD_MS        10    // Check button frequently
 #define BRIGHTNESS_PERIOD_MS         50    // Read potentiometer every 50ms
 #define MORSE_PERIOD_MS              100   // Check morse state
+#define DATETIME_PERIOD_MS           10000   // Print date/time every 10s
 
 #endif // CONFIG_H

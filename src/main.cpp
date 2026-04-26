@@ -14,12 +14,14 @@ void setup() {
   Serial.println("1. LED Pattern - Press button to change patterns");
   Serial.println("2. Brightness Control - Adjust potentiometer");
   Serial.println("3. Morse Code - Sending SOS");
+  Serial.println("4. Datetime - print date/time every 10s, press button to change time zones");
   Serial.println("==========================================\n");
   
   // Create tasks and pin them to specific cores
   TaskHandle_t ledPatternTaskHandle = nullptr;
   TaskHandle_t brightnessTaskHandle = nullptr;
   TaskHandle_t morseTaskHandle = nullptr;
+  TaskHandle_t dateTimeTaskHandle = nullptr;
   
   // Create LED Pattern Task on Core 0 (high priority for button responsiveness)
   xTaskCreatePinnedToCore(
@@ -54,7 +56,18 @@ void setup() {
     MORSE_TASK_CORE
   );
 
-  setStatusTaskHandles(ledPatternTaskHandle, brightnessTaskHandle, morseTaskHandle);
+  // DateTime Task on Core 1 (lower priority)
+  xTaskCreatePinnedToCore(
+    DateTimeTask,
+    "DateTime",
+    DATETIME_TASK_STACK_SIZE,
+    NULL,
+    DATETIME_TASK_PRIORITY,
+    &dateTimeTaskHandle,
+    DATETIME_TASK_CORE
+  );
+
+  setStatusTaskHandles(ledPatternTaskHandle, brightnessTaskHandle, morseTaskHandle); //TODO: add dateTimeTaskHandle
 
   // Setup WIFI Connection
   connectToWifi();
