@@ -2,10 +2,22 @@
 #include "tasks/task_definitions.h"
 #include "http_status_server.h"
 #include "config/config.h"
+#include "FreeRTOSConfig.h"
+
+Adafruit_MPU6050 mpu;
+TwoWire I2CMPU = TwoWire(0);
+
 
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
+  I2CMPU.begin(SDA_PIN,SCL_PIN,100000);
+
+  
+  if(!mpu.begin(MPU6050_I2CADDR_DEFAULT,&I2CMPU)) {
+    Serial.println("Could not find valid MPU6050 sensor, check wiring!");
+    while(1);
+  }
   delay(1000);  // Wait for serial to initialize
   
   Serial.println("\n=== ESP32 FreeRTOS Multi-Task Demo ===");
