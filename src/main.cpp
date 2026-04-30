@@ -1,8 +1,8 @@
-#include <Arduino.h>
-#include "tasks/task_definitions.h"
+#include <FreeRTOSConfig.h>
+#include "task_definitions.h"
 #include "http_status_server.h"
 #include "config/config.h"
-#include "FreeRTOSConfig.h"
+#include "Adafruit_MPU6050.h"
 
 Adafruit_MPU6050 mpu;
 TwoWire I2CMPU = TwoWire(0);

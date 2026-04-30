@@ -1,8 +1,6 @@
 #ifndef TASK_DEFINITIONS_H
 #define TASK_DEFINITIONS_H
 
-#include <Arduino.h>
-
 // Task function prototypes
 // These will be passed to xTaskCreatePinnedToCore()
 

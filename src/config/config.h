@@ -33,6 +33,10 @@
 #define MORSE_LETTER_GAP 600      // Gap between letters
 #define MORSE_WORD_GAP 1400       // Gap between words
 
+// I2C Pins
+#define SCL_PIN 20
+#define SDA_PIN 22
+
 // Ethernet Attributes
 #define WIFI_SSID "Spencer’s Phone"
 #define WIFI_PASSWORD "1234ABCD"
@@ -44,23 +48,31 @@
 #define BRIGHTNESS_TASK_PRIORITY     2
 #define MORSE_TASK_PRIORITY          1
 #define DATETIME_TASK_PRIORITY       1
+#define LOW_ACCEL_PRIORITY           1
+#define HIGH_ACCEL_PRIORITY          3
 
 // Task Stack Sizes (in bytes)
 #define LED_PATTERN_TASK_STACK_SIZE  2048
 #define BRIGHTNESS_TASK_STACK_SIZE   2048
 #define MORSE_TASK_STACK_SIZE        2048
 #define DATETIME_TASK_STACK_SIZE     2048
+#define LOW_ACCEL_STACK_SIZE         2048
+#define HIGH_ACCEL_STACK_SIZE        2048
 
-// Task Core Assignment (ESP32 has cores 0 and 1)
+// Task Core Assignment (ESP32 has cores 0 and 1) I think only thingspeak should be on core 1.
 #define LED_PATTERN_TASK_CORE        0  // Button handling on core 0
-#define BRIGHTNESS_TASK_CORE         1  // Analog reading on core 1
+#define BRIGHTNESS_TASK_CORE         0  // Analog reading on core 0
 #define MORSE_TASK_CORE              0  // Timing-critical on core 0
-#define DATETIME_TASK_CORE           1  // date/time on core 1
+#define DATETIME_TASK_CORE           0  // date/time on core 0
+#define LOW_ACCEL_TASK_CORE          0  // low accel on core 0
+#define HIGH_ACCEL_TASK_CORE         0  // high accel on core 0
 
 // Task Periods (in milliseconds)
 #define LED_PATTERN_PERIOD_MS        10    // Check button frequently
 #define BRIGHTNESS_PERIOD_MS         50    // Read potentiometer every 50ms
 #define MORSE_PERIOD_MS              100   // Check morse state
 #define DATETIME_PERIOD_MS           10000   // Print date/time every 10s
+#define LOW_ACCEL_PERIOD_MS          500   // Check accelerometer raw values every 500ms
+#define HIGH_ACCEL_PERIOD_MS         50    // Check accelerometer raw value every 50 ms
 
 #endif // CONFIG_H
