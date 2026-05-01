@@ -8,7 +8,7 @@ Adafruit_MPU6050 mpu;
 TwoWire I2CMPU = TwoWire(0);
 
 
-void setup() {
+void main() {
   // Initialize serial communication
   Serial.begin(115200);
   I2CMPU.begin(SDA_PIN,SCL_PIN,100000);
@@ -34,6 +34,7 @@ void setup() {
   TaskHandle_t brightnessTaskHandle = nullptr;
   TaskHandle_t morseTaskHandle = nullptr;
   TaskHandle_t dateTimeTaskHandle = nullptr;
+  TaskHandle_t xLowAccelTaskHandle = nullptr;
   
   // Create LED Pattern Task on Core 0 (high priority for button responsiveness)
   xTaskCreatePinnedToCore(
@@ -79,8 +80,28 @@ void setup() {
     DATETIME_TASK_CORE
   );
 
-  setStatusTaskHandles(ledPatternTaskHandle, brightnessTaskHandle, morseTaskHandle); //TODO: add dateTimeTaskHandle
+  xTaskCreatePinnedToCore(
+    vHighAccelTask,
+    "HighAccelHandle",
+    HIGH_ACCEL_STACK_SIZE,
+    NULL,
+    HIGH_ACCEL_TASK_PRIORITY,
+    &xHighAccelTaskHandle,
+    HIGH_ACCEL_TASK_CORE
+  );
 
+  xTaskCreatePinnedToCore(
+    vLowAccelTask,
+    "LowAccelHandle",
+    LOW_ACCEL_STACK_SIZE,
+    NULL,
+    LOW_ACCEL_TASK_PRIORITY,
+    &xLowAccelTaskHandle,
+    LOW_ACCEL_TASK_CORE
+  );
+
+
+  setStatusTaskHandles(ledPatternTaskHandle, brightnessTaskHandle, morseTaskHandle, dateTimeTaskHandle, xHighAccelTaskHandle, xLowAccelTaskHandle);
   // Setup WIFI Connection
   connectToWifi();
   startHttpStatusServer();
@@ -89,9 +110,4 @@ void setup() {
   Serial.println("System running...\n");
 }
 
-void loop() {
-  // Empty - FreeRTOS tasks handle everything
-  // The loop() function still runs but we don't use it
-  // FreeRTOS scheduler manages all tasks
-  vTaskDelay(pdMS_TO_TICKS(10000));  // Delay to prevent watchdog timeout
-}
+

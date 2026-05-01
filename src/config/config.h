@@ -48,8 +48,8 @@
 #define BRIGHTNESS_TASK_PRIORITY     2
 #define MORSE_TASK_PRIORITY          1
 #define DATETIME_TASK_PRIORITY       1
-#define LOW_ACCEL_PRIORITY           1
-#define HIGH_ACCEL_PRIORITY          3
+#define LOW_ACCEL_TASK_PRIORITY      1
+#define HIGH_ACCEL_TASK_PRIORITY     3
 
 // Task Stack Sizes (in bytes)
 #define LED_PATTERN_TASK_STACK_SIZE  2048

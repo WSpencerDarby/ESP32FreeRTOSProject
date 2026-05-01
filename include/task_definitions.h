@@ -1,8 +1,14 @@
 #ifndef TASK_DEFINITIONS_H
 #define TASK_DEFINITIONS_H
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+
 // Task function prototypes
 // These will be passed to xTaskCreatePinnedToCore()
+
+extern TaskHandle_t xHighAccelTaskHandle;
 
 /**
  * LED Pattern Task
@@ -31,5 +37,9 @@ void MorseCodeTask(void *pvParameters);
  * Demonstrates: button debouncing, RTC
  */
 void DateTimeTask(void *pvParameters);
+
+void vHighAccelTask(void *pvParameters);
+
+void vLowAccelTask(void *pvParameters);
 
 #endif // TASK_DEFINITIONS_H
