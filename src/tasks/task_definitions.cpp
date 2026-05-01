@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "task_definitions.h"
 #include "../config/config.h"
 #include "time.h"
@@ -5,6 +6,8 @@
 
 // Global variable for button state (shared between tasks if needed)
 static volatile int currentPattern = 0;
+
+TaskHandle_t xHighAccelTaskHandle = NULL;
 
 /**
  * LED Pattern Task
@@ -297,4 +300,24 @@ void DateTimeTask(void *pvParameters) {
 
     }
 
+}
+
+void vHighAccelTask(void *pvParameters)
+{
+    for(;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        //TODO: Manage acceleration for 
+    }
+}
+
+void vLowAccelTask(void *pvParameters)
+{
+    for(;;) {
+        vTaskDelay(pdMS_TO_TICKS(LOW_ACCEL_PERIOD_MS));
+        //TODO setup event to detect
+
+        xTaskNotifyGive(xHighAccelTaskHandle);
+    }
+
+    
 }

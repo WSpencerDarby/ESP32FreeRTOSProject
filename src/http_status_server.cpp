@@ -11,6 +11,9 @@ static httpd_handle_t server = nullptr;
 static TaskHandle_t ledPatternTaskHandle = nullptr;
 static TaskHandle_t brightnessTaskHandle = nullptr;
 static TaskHandle_t morseTaskHandle = nullptr;
+static TaskHandle_t dateTimeTaskHandle = nullptr;
+static TaskHandle_t highAccelTaskHandle = nullptr;
+static TaskHandle_t lowAccelTaskHandle = nullptr;
 
 static const char *stateName(eTaskState state) {
   switch (state) {
@@ -116,10 +119,16 @@ void connectToWifi() {
 
 void setStatusTaskHandles(TaskHandle_t ledPatternTask,
                           TaskHandle_t brightnessTask,
-                          TaskHandle_t morseTask) {
+                          TaskHandle_t morseTask,
+                          TaskHandle_t dateTimeTask,
+                          TaskHandle_t highAccelTask,
+                          TaskHandle_t lowAccelTask) {
   ledPatternTaskHandle = ledPatternTask;
   brightnessTaskHandle = brightnessTask;
   morseTaskHandle = morseTask;
+  dateTimeTaskHandle = dateTimeTask;
+  highAccelTaskHandle = highAccelTask;
+  lowAccelTaskHandle = lowAccelTask;
 }
 
 void startHttpStatusServer() {
