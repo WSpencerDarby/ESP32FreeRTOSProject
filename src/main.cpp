@@ -2,10 +2,11 @@
 #include "task_definitions.h"
 #include "http_status_server.h"
 #include "config/config.h"
-#include "Adafruit_MPU6050.h"
+#include <Perilib.h>
 
-Adafruit_MPU6050 mpu;
+PerilibTwiRegisterInterface_ArduinoWire mpu(MPU6050_DEVADDR_DEFAULT,&I2CMPU);
 TwoWire I2CMPU = TwoWire(0);
+imu_data_t imuData;
 
 
 void main() {
@@ -13,8 +14,8 @@ void main() {
   Serial.begin(115200);
   I2CMPU.begin(SDA_PIN,SCL_PIN,100000);
 
-  
-  if(!mpu.begin(MPU6050_I2CADDR_DEFAULT,&I2CMPU)) {
+  mpu.read8_reg8(MPU6060_REGADDR_WHO_AM_I,imuData.buf);
+  if(imuData.buf[0]!=0x68) {
     Serial.println("Could not find valid MPU6050 sensor, check wiring!");
     while(1);
   }

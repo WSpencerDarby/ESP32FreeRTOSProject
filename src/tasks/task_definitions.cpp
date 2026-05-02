@@ -6,6 +6,10 @@
 
 // Global variable for button state (shared between tasks if needed)
 static volatile int currentPattern = 0;
+uint32_t dTMicros;
+uint32_t lastMicros;
+imu_data_t imuData;
+static VectorFloat aa, gv;
 
 TaskHandle_t xHighAccelTaskHandle = NULL;
 
@@ -304,19 +308,65 @@ void DateTimeTask(void *pvParameters) {
 
 void vHighAccelTask(void *pvParameters)
 {
+    
     for(;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        //TODO: Manage acceleration for 
+        int rxResult = mpu.readBuf_reg8(MPU6050_REGADDR_ACCEL_XOUT_H, imuData.buf, -14);
+        if (rxResult != 14) {
+            Serial.println("Error reading data from IMU");
+        } else {
+            aa.x = imuData.ax * (1.0f/16384.0f);
+            aa.y = imuData.ay * (1.0f/16384.0f);
+            aa.z = imuData.az * (1.0f/16384.0f);
+            gv.x = imuData.gx * PI/(131.0f*180.0f);
+            gv.y = imuData.gy * PI/(131.0f*180.0f);
+            gv.z = imuData.gz * PI/(131.0f*180.0f);
+
+            // run Madgwick IMU fusion algorithm iteration
+            dTMicros = micros() - lastMicros;
+            lastMicros += dTMicros;
+            Quaternion q = update_madgwick_6dof_filter(
+            imuData.ax, imuData.ay, imuData.az, // raw accelerometer values
+            imuData.gx, imuData.gy, imuData.gz, // raw gyroscope values
+            dTMicros/1000000.0f,                // time (sec) since last iteration
+            (1.0f/16384.0f),                    // scale factor to convert raw accel -> g (1.0 = 9.8 m/s^2)
+            PI/(131.0f*180.0f));                // scale factor to convert raw gyro -> rad/sec
+        }
     }
 }
 
 void vLowAccelTask(void *pvParameters)
 {
+    lastMicros = micros();
+
     for(;;) {
         vTaskDelay(pdMS_TO_TICKS(LOW_ACCEL_PERIOD_MS));
-        //TODO setup event to detect
+        mpu.write8_reg8(MPU6050_REGADDR_PWR_MGMT_1, 0x00);
+        int rxResult = mpu.readBuf_reg8(MPU6050_REGADDR_ACCEL_XOUT_H, imuData.buf, -14);
+        if (rxResult != 14) {
+            Serial.println("Error reading data from IMU");
+        } else {
+            aa.x = imuData.ax * (1.0f/16384.0f);
+            aa.y = imuData.ay * (1.0f/16384.0f);
+            aa.z = imuData.az * (1.0f/16384.0f);
+            gv.x = imuData.gx * PI/(131.0f*180.0f);
+            gv.y = imuData.gy * PI/(131.0f*180.0f);
+            gv.z = imuData.gz * PI/(131.0f*180.0f);
 
-        xTaskNotifyGive(xHighAccelTaskHandle);
+            // run Madgwick IMU fusion algorithm iteration
+            dTMicros = micros() - lastMicros;
+            lastMicros += dTMicros;
+            Quaternion q = update_madgwick_6dof_filter(
+            imuData.ax, imuData.ay, imuData.az, // raw accelerometer values
+            imuData.gx, imuData.gy, imuData.gz, // raw gyroscope values
+            dTMicros/1000000.0f,                // time (sec) since last iteration
+            (1.0f/16384.0f),                    // scale factor to convert raw accel -> g (1.0 = 9.8 m/s^2)
+            PI/(131.0f*180.0f));                // scale factor to convert raw gyro -> rad/sec
+            if ( aa.getMagnitude() > 0.5 || gv.getMagnitude() > 0.5 ) {
+                xTaskNotifyGive(xHighAccelTaskHandle);
+            }
+        }
+        mpu.write8_reg8(MPU6050_REGADDR_PWR_MGMT_1, 0x06);
     }
 
     

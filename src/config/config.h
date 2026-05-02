@@ -75,4 +75,9 @@
 #define LOW_ACCEL_PERIOD_MS          500   // Check accelerometer raw values every 500ms
 #define HIGH_ACCEL_PERIOD_MS         50    // Check accelerometer raw value every 50 ms
 
+#define MPU6050_DEVADDR_DEFAULT         0x68
+#define MPU6050_REGADDR_ACCEL_XOUT_H    0x3B
+#define MPU6050_REGADDR_PWR_MGMT_1      0x6B
+#define MPU6060_REGADDR_WHO_AM_I        0x75
+
 #endif // CONFIG_H
