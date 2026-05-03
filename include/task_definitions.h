@@ -4,27 +4,15 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "Perilib.h"
-#include "madgwick_6dof.h"
+#include "I2Cdev.h"
+#include "MPU6050_6Axis_MotionApps20.h"
 
 // Task function prototypes
 // These will be passed to xTaskCreatePinnedToCore()
 
 extern TaskHandle_t xHighAccelTaskHandle;
-extern PerilibTwiRegisterInterface_ArduinoWire mpu;
+extern MPU6050 mpu;
 
-typedef union {
-  uint8_t buf[14];
-  struct {
-    int16_t gz;
-    int16_t gy;
-    int16_t gx;
-    int16_t temp;
-    int16_t az;
-    int16_t ay;
-    int16_t ax;
-  } __attribute__((packed));
-} imu_data_t;
 
 /**
  * LED Pattern Task
