@@ -4,11 +4,15 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "I2Cdev.h"
+#include "MPU6050_6Axis_MotionApps20.h"
 
 // Task function prototypes
 // These will be passed to xTaskCreatePinnedToCore()
 
 extern TaskHandle_t xHighAccelTaskHandle;
+extern MPU6050 mpu;
+
 
 /**
  * LED Pattern Task

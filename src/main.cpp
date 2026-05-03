@@ -2,23 +2,27 @@
 #include "task_definitions.h"
 #include "http_status_server.h"
 #include "config/config.h"
-#include "Adafruit_MPU6050.h"
 
-Adafruit_MPU6050 mpu;
-TwoWire I2CMPU = TwoWire(0);
+MPU6050 mpu(MPU6050_DEVADDR_DEFAULT);
+int devStatus;
 
 
-void main() {
+void setup() {
   // Initialize serial communication
   Serial.begin(115200);
-  I2CMPU.begin(SDA_PIN,SCL_PIN,100000);
+  #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+      Wire.begin();
+      Wire.setClock(400000);
+  #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+      Fastwire::setup(400, true);
+  #endif
 
-  
-  if(!mpu.begin(MPU6050_I2CADDR_DEFAULT,&I2CMPU)) {
-    Serial.println("Could not find valid MPU6050 sensor, check wiring!");
-    while(1);
-  }
+  mpu.initialize();
+  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+
   delay(1000);  // Wait for serial to initialize
+
+  devStatus = mpu.dmpInitialize();
   
   Serial.println("\n=== ESP32 FreeRTOS Multi-Task Demo ===");
   Serial.printf("Running on ESP32 with %d cores\n", portNUM_PROCESSORS);
@@ -28,6 +32,24 @@ void main() {
   Serial.println("3. Morse Code - Sending SOS");
   Serial.println("4. Datetime - print date/time every 10s, press button to change time zones");
   Serial.println("==========================================\n");
+
+  if (devStatus == 0) {
+    // Calibration Time: generate offsets and calibrate our MPU6050
+    mpu.CalibrateAccel(6);
+    mpu.CalibrateGyro(6);
+    mpu.PrintActiveOffsets();
+    // turn on the DMP, now that it's ready
+    Serial.println(F("Enabling DMP..."));
+    mpu.setDMPEnabled(true);
+  } else {
+    // ERROR!
+    // 1 = initial memory load failed
+    // 2 = DMP configuration updates failed
+    // (if it's going to break, usually the code will be 1)
+    Serial.print(F("DMP Initialization failed (code "));
+    Serial.print(devStatus);
+    Serial.println(F(")"));
+  }
   
   // Create tasks and pin them to specific cores
   TaskHandle_t ledPatternTaskHandle = nullptr;
@@ -111,3 +133,6 @@ void main() {
 }
 
 
+void loop() {
+
+}

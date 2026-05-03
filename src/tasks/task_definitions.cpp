@@ -7,6 +7,15 @@
 // Global variable for button state (shared between tasks if needed)
 static volatile int currentPattern = 0;
 
+uint8_t fifoBuffer[64]; // FIFO storage buffer
+
+
+Quaternion q;           // [w, x, y, z]         quaternion container
+VectorInt16 aa;         // [x, y, z]            accel sensor measurements
+VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
+VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
+VectorFloat gravity;    // [x, y, z]            gravity vector
+
 TaskHandle_t xHighAccelTaskHandle = NULL;
 
 /**
@@ -122,12 +131,11 @@ void LEDPatternTask(void *pvParameters) {
  */
 void BrightnessControlTask(void *pvParameters) {
     // Setup PWM for LED
-    ledcSetup(PWM_LED_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
-    ledcAttachPin(PWM_LED_PIN, PWM_LED_CHANNEL);
+    ledcAttach(PWM_LED_PIN, PWM_FREQ,PWM_RESOLUTION);
+    
     
     // Setup PWM for speaker
-    ledcSetup(PWM_SPEAKER_CHANNEL, SPEAKER_FREQ, PWM_RESOLUTION);
-    ledcAttachPin(SPEAKER_PIN, PWM_SPEAKER_CHANNEL);
+    ledcAttach(SPEAKER_PIN, SPEAKER_FREQ, PWM_RESOLUTION);
     
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(BRIGHTNESS_PERIOD_MS);
@@ -172,8 +180,7 @@ void BrightnessControlTask(void *pvParameters) {
  */
 void MorseCodeTask(void *pvParameters) {
     pinMode(MORSE_LED_PIN, OUTPUT);
-    ledcSetup(2, SPEAKER_FREQ, PWM_RESOLUTION);  // Use channel 2 for morse buzzer
-    ledcAttachPin(MORSE_BUZZER_PIN, 2);
+    ledcAttach(MORSE_BUZZER_PIN, SPEAKER_FREQ, PWM_RESOLUTION);
     
     // Morse code for "SOS"
     const char* message = "SOS";
@@ -287,7 +294,6 @@ void DateTimeTask(void *pvParameters) {
         struct tm timeInfo;
         if(!getLocalTime(&timeInfo)){
             Serial.println("No time available");
-            return;
         }
 
         Serial.println("\n=====================================");
@@ -304,20 +310,41 @@ void DateTimeTask(void *pvParameters) {
 
 void vHighAccelTask(void *pvParameters)
 {
+    
     for(;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        //TODO: Manage acceleration for 
+        if ( aaReal.getMagnitude() < 500 ) {
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            Serial.println("High Accel Task activated");
+        }
+        if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+            mpu.dmpGetQuaternion(&q, fifoBuffer);
+            mpu.dmpGetAccel(&aa, fifoBuffer);
+            mpu.dmpGetGravity(&gravity, &q);
+            mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+            Serial.println(aaReal.getMagnitude());
+        }
+        vTaskDelay(pdMS_TO_TICKS(HIGH_ACCEL_PERIOD_MS));
     }
 }
 
 void vLowAccelTask(void *pvParameters)
 {
+
     for(;;) {
         vTaskDelay(pdMS_TO_TICKS(LOW_ACCEL_PERIOD_MS));
-        //TODO setup event to detect
-
-        xTaskNotifyGive(xHighAccelTaskHandle);
+        if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+            mpu.dmpGetQuaternion(&q, fifoBuffer);
+            mpu.dmpGetAccel(&aa, fifoBuffer);
+            mpu.dmpGetGravity(&gravity, &q);
+            mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+            Serial.println(aaReal.getMagnitude());
+            if ( aaReal.getMagnitude() > 500 ) {
+                xTaskNotifyGive(xHighAccelTaskHandle);
+            }
+        }
+        taskYIELD();
     }
 
     
 }
+
