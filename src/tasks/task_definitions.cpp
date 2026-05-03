@@ -1,8 +1,7 @@
 #include <Arduino.h>
 #include "task_definitions.h"
 #include "../config/config.h"
-#include "time.h"
-#include <string>
+#include "app_logger.h"
 
 // Global variable for button state (shared between tasks if needed)
 static volatile int currentPattern = 0;
@@ -55,7 +54,7 @@ void LEDPatternTask(void *pvParameters) {
         if (buttonState == LOW && lastButtonState == HIGH) {
             currentPattern = (currentPattern + 1) % 5;
             patternStep = 0;
-            Serial.printf("[LED_PATTERN] Changed to pattern %d\n", currentPattern);
+            LOG_INFO("LED_PATTERN", "Changed to pattern %d", currentPattern);
             vTaskDelay(pdMS_TO_TICKS(50));  // Simple debounce
         }
         lastButtonState = buttonState;
@@ -158,11 +157,14 @@ void BrightnessControlTask(void *pvParameters) {
         
         unsigned long execTime = micros() - startTime;
         
-        // Print every 1 second to avoid flooding serial
+        // Throttle sensor logs so task stats stay readable.
         static unsigned long lastPrint = 0;
-        if (millis() - lastPrint >= 1000) {
-            Serial.printf("[BRIGHTNESS] Pot=%d, Brightness=%d, ExecTime=%lu us\n",
-                          potValue, brightness, execTime);
+        if (millis() - lastPrint >= BRIGHTNESS_LOG_PERIOD_MS) {
+            LOG_DEBUG("BRIGHTNESS",
+                      "Pot=%d, Brightness=%d, ExecTime=%lu us",
+                      potValue,
+                      brightness,
+                      execTime);
             lastPrint = millis();
         }
     }
@@ -188,7 +190,7 @@ void MorseCodeTask(void *pvParameters) {
     while (1) {
         unsigned long startTime = micros();
         
-        Serial.println("[MORSE] Sending SOS...");
+        LOG_INFO("MORSE", "Sending SOS");
         
         // Send "SOS"
         for (int i = 0; i < 3; i++) {  // Repeat 3 times for demo
@@ -234,7 +236,7 @@ void MorseCodeTask(void *pvParameters) {
         }
         
         unsigned long execTime = micros() - startTime;
-        Serial.printf("[MORSE] SOS sequence completed, ExecTime=%lu us\n", execTime);
+        LOG_INFO("MORSE", "SOS sequence completed, ExecTime=%lu us", execTime);
         
         // Wait before repeating
         vTaskDelay(pdMS_TO_TICKS(3000));

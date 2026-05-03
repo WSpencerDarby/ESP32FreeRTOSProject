@@ -11,3 +11,4 @@ void setStatusTaskHandles(TaskHandle_t ledPatternTask,
                           TaskHandle_t highAccelTask,
                           TaskHandle_t lowAccelTask);
 void startHttpStatusServer();
+void startTaskStatsLogger();

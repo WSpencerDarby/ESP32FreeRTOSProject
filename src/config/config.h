@@ -6,7 +6,7 @@
 // LED Pattern Control (4 LEDs)
 #define LED1_PIN 12
 #define LED2_PIN 13
-#define LED3_PIN 14
+#define LED3_PIN 15
 #define LED4_PIN 27
 #define BUTTON_PIN 26  // Button to change pattern
 
@@ -17,7 +17,7 @@
 
 // Morse Code Control
 #define MORSE_LED_PIN 33
-#define MORSE_BUZZER_PIN 15
+#define MORSE_BUZZER_PIN 14
 
 // PWM Configuration
 #define PWM_FREQ 5000         // 5 KHz for LED
@@ -37,9 +37,19 @@
 #define SCL_PIN 20
 #define SDA_PIN 22
 
+#define LOG_MESSAGE_MAX_LENGTH 128
+#define LOG_UDP_TARGET_HOST "255.255.255.255"
+#define LOG_UDP_TARGET_PORT 4210
+#define LOG_UDP_LOCAL_PORT 4211
+#define TASK_STATS_LOG_PERIOD_MS 5000
+#define TASK_STATS_LOG_TASK_PRIORITY 1
+#define TASK_STATS_LOG_TASK_STACK_SIZE 3072
+#define TASK_STATS_LOG_TASK_CORE 1
+#define BRIGHTNESS_LOG_PERIOD_MS 30000
+
 // Ethernet Attributes
-#define WIFI_SSID "Spencer’s Phone"
-#define WIFI_PASSWORD "1234ABCD"
+#define WIFI_SSID "ENSandCo"
+#define WIFI_PASSWORD "elyseandspencer"
 
 // ========== Task Configuration ==========
 

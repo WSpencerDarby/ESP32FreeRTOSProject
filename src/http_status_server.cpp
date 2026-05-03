@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <esp_http_server.h>
 #include "config/config.h"
+#include "app_logger.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -14,6 +15,7 @@ static TaskHandle_t morseTaskHandle = nullptr;
 static TaskHandle_t dateTimeTaskHandle = nullptr;
 static TaskHandle_t highAccelTaskHandle = nullptr;
 static TaskHandle_t lowAccelTaskHandle = nullptr;
+static TaskHandle_t taskStatsLoggerHandle = nullptr;
 
 static const char *stateName(eTaskState state) {
   switch (state) {
@@ -61,6 +63,48 @@ static void addTaskRow(String &html, const char *label, TaskHandle_t task) {
   html += "</td></tr>";
 }
 
+static void logTaskStatsRow(const char *label, TaskHandle_t task) {
+  if (task == nullptr) {
+    LOG_WARN("TASK_STATS", "%s not started", label);
+    return;
+  }
+
+  LOG_INFO("TASK_STATS",
+           "%s name=%s state=%s prio=%u stack_free=%u",
+           label,
+           pcTaskGetName(task),
+           stateName(eTaskGetState(task)),
+           static_cast<unsigned>(uxTaskPriorityGet(task)),
+           static_cast<unsigned>(uxTaskGetStackHighWaterMark(task)));
+}
+
+static void logTaskStatsSnapshot() {
+  LOG_INFO("TASK_STATS",
+           "uptime=%lus heap=%u tasks=%u",
+           millis() / 1000UL,
+           static_cast<unsigned>(ESP.getFreeHeap()),
+           static_cast<unsigned>(uxTaskGetNumberOfTasks()));
+  logTaskStatsRow("led", ledPatternTaskHandle);
+  logTaskStatsRow("brightness", brightnessTaskHandle);
+  logTaskStatsRow("morse", morseTaskHandle);
+  logTaskStatsRow("date time", dateTimeTaskHandle);
+  logTaskStatsRow("high accel", highAccelTaskHandle);
+  logTaskStatsRow("low accel", lowAccelTaskHandle);
+  logTaskStatsRow("stats", taskStatsLoggerHandle);
+}
+
+static void TaskStatsLoggerTask(void *pvParameters) {
+  (void)pvParameters;
+
+  TickType_t lastWakeTime = xTaskGetTickCount();
+  const TickType_t period = pdMS_TO_TICKS(TASK_STATS_LOG_PERIOD_MS);
+
+  while (true) {
+    vTaskDelayUntil(&lastWakeTime, period);
+    logTaskStatsSnapshot();
+  }
+}
+
 static String buildStatusPage() {
   String html;
   html.reserve(2048);
@@ -88,6 +132,10 @@ static String buildStatusPage() {
   addTaskRow(html, "led pattern", ledPatternTaskHandle);
   addTaskRow(html, "brightness", brightnessTaskHandle);
   addTaskRow(html, "morse", morseTaskHandle);
+  addTaskRow(html, "date time", dateTimeTaskHandle);
+  addTaskRow(html, "high accel", highAccelTaskHandle);
+  addTaskRow(html, "low accel", lowAccelTaskHandle);
+  addTaskRow(html, "stats logger", taskStatsLoggerHandle);
   addTaskRow(html, "http", xTaskGetCurrentTaskHandle());
   html += "</table></body></html>";
 
@@ -113,8 +161,7 @@ void connectToWifi() {
   }
 
   Serial.println();
-  Serial.print("ESP32 IP address: ");
-  Serial.println(WiFi.localIP());
+  LOG_INFO("WIFI", "ESP32 IP address: %s", WiFi.localIP().toString().c_str());
 }
 
 void setStatusTaskHandles(TaskHandle_t ledPatternTask,
@@ -141,7 +188,7 @@ void startHttpStatusServer() {
   config.task_priority = 1;
 
   if (httpd_start(&server, &config) != ESP_OK) {
-    Serial.println("HTTP status server failed to start");
+    LOG_ERROR("HTTP", "HTTP status server failed to start");
     server = nullptr;
     return;
   }
@@ -152,6 +199,23 @@ void startHttpStatusServer() {
   root.handler = handleRoot;
   httpd_register_uri_handler(server, &root);
 
-  Serial.printf("HTTP status server: http://%s/\r\n",
-                WiFi.localIP().toString().c_str());
+  LOG_INFO("HTTP", "HTTP status server: http://%s/", WiFi.localIP().toString().c_str());
+  LOG_INFO("LOG", "UDP logs: %s:%u", LOG_UDP_TARGET_HOST, LOG_UDP_TARGET_PORT);
+}
+
+void startTaskStatsLogger() {
+  if (taskStatsLoggerHandle != nullptr) {
+    return;
+  }
+
+  xTaskCreatePinnedToCore(TaskStatsLoggerTask,
+                          "TaskStatsLogger",
+                          TASK_STATS_LOG_TASK_STACK_SIZE,
+                          nullptr,
+                          TASK_STATS_LOG_TASK_PRIORITY,
+                          &taskStatsLoggerHandle,
+                          TASK_STATS_LOG_TASK_CORE);
+
+  LOG_INFO("TASK_STATS", "Task stats logging every %u ms", TASK_STATS_LOG_PERIOD_MS);
+  logTaskStatsSnapshot();
 }

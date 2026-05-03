@@ -1,7 +1,8 @@
-#include <FreeRTOSConfig.h>
+#include <Arduino.h>
 #include "task_definitions.h"
 #include "http_status_server.h"
 #include "config/config.h"
+#include "app_logger.h"
 
 MPU6050 mpu(MPU6050_DEVADDR_DEFAULT);
 int devStatus;
@@ -24,15 +25,9 @@ void setup() {
 
   devStatus = mpu.dmpInitialize();
   
-  Serial.println("\n=== ESP32 FreeRTOS Multi-Task Demo ===");
-  Serial.printf("Running on ESP32 with %d cores\n", portNUM_PROCESSORS);
-  Serial.println("\nTasks:");
-  Serial.println("1. LED Pattern - Press button to change patterns");
-  Serial.println("2. Brightness Control - Adjust potentiometer");
-  Serial.println("3. Morse Code - Sending SOS");
-  Serial.println("4. Datetime - print date/time every 10s, press button to change time zones");
-  Serial.println("==========================================\n");
-
+  LOG_INFO("MAIN", "ESP32 FreeRTOS Multi-Task Demo");
+  LOG_INFO("MAIN", "Running on ESP32 with %d cores", portNUM_PROCESSORS);
+  LOG_INFO("MAIN", "Tasks: LED Pattern, Brightness Control, Morse Code");
   if (devStatus == 0) {
     // Calibration Time: generate offsets and calibrate our MPU6050
     mpu.CalibrateAccel(6);
@@ -101,7 +96,7 @@ void setup() {
     &dateTimeTaskHandle,
     DATETIME_TASK_CORE
   );
-
+  
   xTaskCreatePinnedToCore(
     vHighAccelTask,
     "HighAccelHandle",
@@ -122,14 +117,19 @@ void setup() {
     LOW_ACCEL_TASK_CORE
   );
 
+  setStatusTaskHandles(ledPatternTaskHandle,
+                       brightnessTaskHandle,
+                       morseTaskHandle,
+                       dateTimeTaskHandle,
+                       xHighAccelTaskHandle,
+                       xLowAccelTaskHandle);
 
-  setStatusTaskHandles(ledPatternTaskHandle, brightnessTaskHandle, morseTaskHandle, dateTimeTaskHandle, xHighAccelTaskHandle, xLowAccelTaskHandle);
-  // Setup WIFI Connection
   connectToWifi();
   startHttpStatusServer();
+  startTaskStatsLogger();
   
-  Serial.println("All tasks created successfully!");
-  Serial.println("System running...\n");
+  LOG_INFO("MAIN", "All tasks created successfully");
+  LOG_INFO("MAIN", "System running");
 }
 
 
