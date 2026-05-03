@@ -45,6 +45,8 @@ void setup() {
     Serial.print(devStatus);
     Serial.println(F(")"));
   }
+
+  connectToWifi();
   
   // Create tasks and pin them to specific cores
   TaskHandle_t ledPatternTaskHandle = nullptr;
@@ -124,7 +126,6 @@ void setup() {
                        xHighAccelTaskHandle,
                        xLowAccelTaskHandle);
 
-  connectToWifi();
   startHttpStatusServer();
   startTaskStatsLogger();
   

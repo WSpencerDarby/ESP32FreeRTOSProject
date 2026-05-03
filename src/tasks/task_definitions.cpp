@@ -130,7 +130,7 @@ void LEDPatternTask(void *pvParameters) {
  */
 void BrightnessControlTask(void *pvParameters) {
     // Setup PWM for LED
-    ledcAttach(PWM_LED_PIN, PWM_FREQ,PWM_RESOLUTION);
+    ledcAttach(PWM_LED_PIN, PWM_FREQ, PWM_RESOLUTION);
     
     
     // Setup PWM for speaker
@@ -150,10 +150,10 @@ void BrightnessControlTask(void *pvParameters) {
         int brightness = map(potValue, 0, 4095, 0, 255);
         
         // Set LED brightness
-        ledcWrite(PWM_LED_CHANNEL, brightness);
+        ledcWrite(PWM_LED_PIN, brightness);
         
         // Set speaker volume (same value)
-        ledcWrite(PWM_SPEAKER_CHANNEL, brightness);
+        ledcWrite(SPEAKER_PIN, brightness);
         
         unsigned long execTime = micros() - startTime;
         
@@ -184,9 +184,6 @@ void MorseCodeTask(void *pvParameters) {
     pinMode(MORSE_LED_PIN, OUTPUT);
     ledcAttach(MORSE_BUZZER_PIN, SPEAKER_FREQ, PWM_RESOLUTION);
     
-    // Morse code for "SOS"
-    const char* message = "SOS";
-    
     while (1) {
         unsigned long startTime = micros();
         
@@ -198,11 +195,11 @@ void MorseCodeTask(void *pvParameters) {
             // S = ... (3 dots)
             for (int j = 0; j < 3; j++) {
                 digitalWrite(MORSE_LED_PIN, HIGH);
-                ledcWrite(2, 128);  // 50% duty cycle for beep
+                ledcWrite(MORSE_BUZZER_PIN, 128);  // 50% duty cycle for beep
                 vTaskDelay(pdMS_TO_TICKS(MORSE_DOT_DURATION));
                 
                 digitalWrite(MORSE_LED_PIN, LOW);
-                ledcWrite(2, 0);
+                ledcWrite(MORSE_BUZZER_PIN, 0);
                 vTaskDelay(pdMS_TO_TICKS(MORSE_SYMBOL_GAP));
             }
             
@@ -211,11 +208,11 @@ void MorseCodeTask(void *pvParameters) {
             // O = --- (3 dashes)
             for (int j = 0; j < 3; j++) {
                 digitalWrite(MORSE_LED_PIN, HIGH);
-                ledcWrite(2, 128);
+                ledcWrite(MORSE_BUZZER_PIN, 128);
                 vTaskDelay(pdMS_TO_TICKS(MORSE_DASH_DURATION));
                 
                 digitalWrite(MORSE_LED_PIN, LOW);
-                ledcWrite(2, 0);
+                ledcWrite(MORSE_BUZZER_PIN, 0);
                 vTaskDelay(pdMS_TO_TICKS(MORSE_SYMBOL_GAP));
             }
             
@@ -224,11 +221,11 @@ void MorseCodeTask(void *pvParameters) {
             // S = ... (3 dots)
             for (int j = 0; j < 3; j++) {
                 digitalWrite(MORSE_LED_PIN, HIGH);
-                ledcWrite(2, 128);
+                ledcWrite(MORSE_BUZZER_PIN, 128);
                 vTaskDelay(pdMS_TO_TICKS(MORSE_DOT_DURATION));
                 
                 digitalWrite(MORSE_LED_PIN, LOW);
-                ledcWrite(2, 0);
+                ledcWrite(MORSE_BUZZER_PIN, 0);
                 vTaskDelay(pdMS_TO_TICKS(MORSE_SYMBOL_GAP));
             }
             
@@ -261,42 +258,52 @@ void DateTimeTask(void *pvParameters) {
     //Variables to configure the time on the device
     const char* ntpServer = "pool.ntp.org";
     int utcOffsetSec;
-    int daylightOffsetSec = 3600;
+    int daylightOffsetSec;
     String timeZone;
+
+    configTime(0, 0, ntpServer);
 
     while(1) {
         //Set the UTC/GMT Offset (in seconds)
         switch(currentPattern){
             case 1:
                 utcOffsetSec = -8 * 3600;
+                daylightOffsetSec = 3600;
                 timeZone = "Pacific Daylight Time (PDT)";
                 break;
             case 2:
                 utcOffsetSec = -7 * 3600;
+                daylightOffsetSec = 3600;
                 timeZone = "Mountain Daylight Time (MDT)";
                 break;
             case 3:
                 utcOffsetSec = -6 * 3600;
+                daylightOffsetSec = 3600;
                 timeZone = "Central Daylight Time (CDT)";
                 break;
             case 4:
                 utcOffsetSec = -5 * 3600;
+                daylightOffsetSec = 3600;
                 timeZone = "Eastern Daylight Time (EDT)";
                 break;
             default:
                 utcOffsetSec = 0;
+                daylightOffsetSec = 0;
                 timeZone = "Coordinated Universal Time (UTC)";
                 break;
         }
 
-        // Configure the time
-        configTime(utcOffsetSec, daylightOffsetSec, ntpServer);
-
         // Print the time
-        struct tm timeInfo;
-        if(!getLocalTime(&timeInfo)){
+        time_t now = time(nullptr);
+        if (now < 24 * 60 * 60) {
             Serial.println("No time available");
+            vTaskDelay(pdMS_TO_TICKS(DATETIME_PERIOD_MS));
+            continue;
         }
+
+        const time_t adjustedTime = now + utcOffsetSec + daylightOffsetSec;
+        struct tm timeInfo;
+        gmtime_r(&adjustedTime, &timeInfo);
 
         Serial.println("\n=====================================");
         Serial.println(&timeInfo, "%A, %B, %d %Y %I:%M %p");
@@ -304,7 +311,7 @@ void DateTimeTask(void *pvParameters) {
         Serial.println("=====================================\n");
 
         // Wait before repeating
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        vTaskDelay(pdMS_TO_TICKS(DATETIME_PERIOD_MS));
 
     }
 
@@ -349,4 +356,3 @@ void vLowAccelTask(void *pvParameters)
 
     
 }
-

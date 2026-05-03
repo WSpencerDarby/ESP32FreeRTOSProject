@@ -6,11 +6,26 @@
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <freertos/semphr.h>
 
 #include "config/config.h"
 
 static WiFiUDP logUdp;
 static bool logUdpStarted = false;
+static SemaphoreHandle_t logMutex = nullptr;
+static portMUX_TYPE logMutexInitLock = portMUX_INITIALIZER_UNLOCKED;
+
+static SemaphoreHandle_t getLogMutex() {
+  if (logMutex == nullptr) {
+    portENTER_CRITICAL(&logMutexInitLock);
+    if (logMutex == nullptr) {
+      logMutex = xSemaphoreCreateMutex();
+    }
+    portEXIT_CRITICAL(&logMutexInitLock);
+  }
+
+  return logMutex;
+}
 
 static const char *levelName(LogLevel level) {
   switch (level) {
@@ -50,6 +65,11 @@ static void sendLogOverUdp(const char *line) {
 }
 
 void logMessage(LogLevel level, const char *tag, const char *message) {
+  SemaphoreHandle_t mutex = getLogMutex();
+  if (mutex != nullptr) {
+    xSemaphoreTake(mutex, portMAX_DELAY);
+  }
+
   if (tag == nullptr) {
     tag = "APP";
   }
@@ -69,6 +89,10 @@ void logMessage(LogLevel level, const char *tag, const char *message) {
 
   Serial.println(line);
   sendLogOverUdp(line);
+
+  if (mutex != nullptr) {
+    xSemaphoreGive(mutex);
+  }
 }
 
 void logPrintf(LogLevel level, const char *tag, const char *format, ...) {

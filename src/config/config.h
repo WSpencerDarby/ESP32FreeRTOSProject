@@ -22,8 +22,6 @@
 // PWM Configuration
 #define PWM_FREQ 5000         // 5 KHz for LED
 #define PWM_RESOLUTION 8      // 8-bit resolution (0-255)
-#define PWM_LED_CHANNEL 0
-#define PWM_SPEAKER_CHANNEL 1
 #define SPEAKER_FREQ 1000     // 1 KHz tone for morse code
 
 // Morse Code Timing (in milliseconds)
@@ -62,12 +60,12 @@
 #define HIGH_ACCEL_TASK_PRIORITY     3
 
 // Task Stack Sizes (in bytes)
-#define LED_PATTERN_TASK_STACK_SIZE  2048
-#define BRIGHTNESS_TASK_STACK_SIZE   2048
-#define MORSE_TASK_STACK_SIZE        2048
-#define DATETIME_TASK_STACK_SIZE     2048
-#define LOW_ACCEL_STACK_SIZE         2048
-#define HIGH_ACCEL_STACK_SIZE        2048
+#define LED_PATTERN_TASK_STACK_SIZE  3072
+#define BRIGHTNESS_TASK_STACK_SIZE   3072
+#define MORSE_TASK_STACK_SIZE        4096
+#define DATETIME_TASK_STACK_SIZE     4096
+#define LOW_ACCEL_STACK_SIZE         4096
+#define HIGH_ACCEL_STACK_SIZE        4096
 
 // Task Core Assignment (ESP32 has cores 0 and 1) I think only thingspeak should be on core 1.
 #define LED_PATTERN_TASK_CORE        0  // Button handling on core 0
