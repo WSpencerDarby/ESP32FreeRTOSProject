@@ -16,6 +16,23 @@ static TaskHandle_t dateTimeTaskHandle = nullptr;
 static TaskHandle_t highAccelTaskHandle = nullptr;
 static TaskHandle_t lowAccelTaskHandle = nullptr;
 static TaskHandle_t taskStatsLoggerHandle = nullptr;
+static portMUX_TYPE runtimeStatsMux = portMUX_INITIALIZER_UNLOCKED;
+static constexpr UBaseType_t MAX_RUNTIME_TASKS = 32;
+
+struct RuntimeTaskSample {
+  TaskHandle_t handle;
+  configRUN_TIME_COUNTER_TYPE counter;
+};
+
+struct RuntimeTaskUsage {
+  TaskHandle_t handle;
+  float cpuPercent;
+};
+
+static RuntimeTaskSample previousRuntimeSamples[MAX_RUNTIME_TASKS] = {};
+static UBaseType_t previousRuntimeSampleCount = 0;
+static RuntimeTaskUsage currentRuntimeUsage[MAX_RUNTIME_TASKS] = {};
+static UBaseType_t currentRuntimeUsageCount = 0;
 
 static const char *stateName(eTaskState state) {
   switch (state) {
@@ -42,13 +59,98 @@ static void addMetricRow(String &html, const char *name, const String &value) {
   html += "</td></tr>";
 }
 
+static configRUN_TIME_COUNTER_TYPE findRuntimeCounter(const RuntimeTaskSample *samples,
+                                                      UBaseType_t sampleCount,
+                                                      TaskHandle_t handle) {
+  for (UBaseType_t i = 0; i < sampleCount; ++i) {
+    if (samples[i].handle == handle) {
+      return samples[i].counter;
+    }
+  }
+
+  return 0;
+}
+
+static float getTaskCpuPercent(TaskHandle_t task) {
+  if (task == nullptr) {
+    return 0.0f;
+  }
+
+  portENTER_CRITICAL(&runtimeStatsMux);
+  for (UBaseType_t i = 0; i < currentRuntimeUsageCount; ++i) {
+    if (currentRuntimeUsage[i].handle == task) {
+      const float cpuPercent = currentRuntimeUsage[i].cpuPercent;
+      portEXIT_CRITICAL(&runtimeStatsMux);
+      return cpuPercent;
+    }
+  }
+  portEXIT_CRITICAL(&runtimeStatsMux);
+
+  return 0.0f;
+}
+
+static void refreshRuntimeUsageSnapshot() {
+  TaskStatus_t status[MAX_RUNTIME_TASKS];
+  RuntimeTaskSample previousSamples[MAX_RUNTIME_TASKS] = {};
+  RuntimeTaskSample nextSamples[MAX_RUNTIME_TASKS] = {};
+  RuntimeTaskUsage nextUsage[MAX_RUNTIME_TASKS] = {};
+
+  portENTER_CRITICAL(&runtimeStatsMux);
+  const UBaseType_t previousSampleCount = previousRuntimeSampleCount;
+  for (UBaseType_t i = 0; i < previousSampleCount; ++i) {
+    previousSamples[i] = previousRuntimeSamples[i];
+  }
+  portEXIT_CRITICAL(&runtimeStatsMux);
+
+  configRUN_TIME_COUNTER_TYPE totalRunTime = 0;
+  const UBaseType_t actualTaskCount = uxTaskGetSystemState(status, MAX_RUNTIME_TASKS, &totalRunTime);
+  configRUN_TIME_COUNTER_TYPE totalDelta = 0;
+
+  for (UBaseType_t i = 0; i < actualTaskCount; ++i) {
+    const configRUN_TIME_COUNTER_TYPE previous =
+        findRuntimeCounter(previousSamples, previousSampleCount, status[i].xHandle);
+    configRUN_TIME_COUNTER_TYPE delta = 0;
+
+    if (previous != 0 && status[i].ulRunTimeCounter >= previous) {
+      delta = status[i].ulRunTimeCounter - previous;
+    }
+
+    nextSamples[i] = {status[i].xHandle, status[i].ulRunTimeCounter};
+    nextUsage[i] = {status[i].xHandle, 0.0f};
+    totalDelta += delta;
+  }
+
+  if (totalDelta > 0) {
+    for (UBaseType_t i = 0; i < actualTaskCount; ++i) {
+      const configRUN_TIME_COUNTER_TYPE previous =
+          findRuntimeCounter(previousSamples, previousSampleCount, status[i].xHandle);
+      const configRUN_TIME_COUNTER_TYPE delta =
+          (previous != 0 && status[i].ulRunTimeCounter >= previous)
+              ? status[i].ulRunTimeCounter - previous
+              : 0;
+
+      nextUsage[i].cpuPercent = (static_cast<float>(delta) * 100.0f) /
+                                static_cast<float>(totalDelta);
+    }
+  }
+
+  portENTER_CRITICAL(&runtimeStatsMux);
+  for (UBaseType_t i = 0; i < actualTaskCount; ++i) {
+    previousRuntimeSamples[i] = nextSamples[i];
+    currentRuntimeUsage[i] = nextUsage[i];
+  }
+  previousRuntimeSampleCount = actualTaskCount;
+  currentRuntimeUsageCount = actualTaskCount;
+  portEXIT_CRITICAL(&runtimeStatsMux);
+}
+
 static void addTaskRow(String &html, const char *label, TaskHandle_t task) {
   html += "<tr><td>";
   html += label;
   html += "</td>";
 
   if (task == nullptr) {
-    html += "<td colspan=\"4\">not started</td></tr>";
+    html += "<td colspan=\"5\">not started</td></tr>";
     return;
   }
 
@@ -60,6 +162,9 @@ static void addTaskRow(String &html, const char *label, TaskHandle_t task) {
   html += static_cast<unsigned>(uxTaskPriorityGet(task));
   html += "</td><td class=\"num\">";
   html += static_cast<unsigned>(uxTaskGetStackHighWaterMark(task));
+  html += "</td><td class=\"num\">";
+  html += String(getTaskCpuPercent(task), 1);
+  html += "%";
   html += "</td></tr>";
 }
 
@@ -70,26 +175,78 @@ static void logTaskStatsRow(const char *label, TaskHandle_t task) {
   }
 
   LOG_INFO("TASK_STATS",
-           "%s name=%s state=%s prio=%u stack_free=%u",
+           "%s name=%s state=%s prio=%u stack_free=%u cpu=%.1f%%",
            label,
            pcTaskGetName(task),
            stateName(eTaskGetState(task)),
            static_cast<unsigned>(uxTaskPriorityGet(task)),
-           static_cast<unsigned>(uxTaskGetStackHighWaterMark(task)));
+           static_cast<unsigned>(uxTaskGetStackHighWaterMark(task)),
+           getTaskCpuPercent(task));
+}
+
+struct LoggedTaskStats {
+  bool initialized;
+  bool started;
+  eTaskState state;
+  unsigned priority;
+  unsigned stackFree;
+  float cpuPercent;
+};
+
+static void logTaskStatsRowOnChange(const char *label, TaskHandle_t task, LoggedTaskStats &last) {
+  if (task == nullptr) {
+    if (!last.initialized || last.started) {
+      LOG_WARN("TASK_STATS", "%s not started", label);
+    }
+
+    last = {true, false, eDeleted, 0, 0};
+    return;
+  }
+
+  const eTaskState state = eTaskGetState(task);
+  const unsigned priority = static_cast<unsigned>(uxTaskPriorityGet(task));
+  const unsigned stackFree = static_cast<unsigned>(uxTaskGetStackHighWaterMark(task));
+  const float cpuPercent = getTaskCpuPercent(task);
+
+  if (last.initialized &&
+      last.started &&
+      last.state == state &&
+      last.priority == priority &&
+      last.stackFree == stackFree &&
+      last.cpuPercent == cpuPercent) {
+    return;
+  }
+
+  LOG_INFO("TASK_STATS",
+           "%s name=%s state=%s prio=%u stack_free=%u cpu=%.1f%%",
+           label,
+           pcTaskGetName(task),
+           stateName(state),
+           priority,
+           stackFree,
+           cpuPercent);
+
+  last = {true, true, state, priority, stackFree, cpuPercent};
 }
 
 static void logTaskStatsSnapshot() {
+  static LoggedTaskStats brightnessStats = {};
+  static LoggedTaskStats highAccelStats = {};
+  static LoggedTaskStats lowAccelStats = {};
+
+  refreshRuntimeUsageSnapshot();
+
   LOG_INFO("TASK_STATS",
            "uptime=%lus heap=%u tasks=%u",
            millis() / 1000UL,
            static_cast<unsigned>(ESP.getFreeHeap()),
            static_cast<unsigned>(uxTaskGetNumberOfTasks()));
   logTaskStatsRow("led", ledPatternTaskHandle);
-  logTaskStatsRow("brightness", brightnessTaskHandle);
+  logTaskStatsRowOnChange("brightness", brightnessTaskHandle, brightnessStats);
   logTaskStatsRow("morse", morseTaskHandle);
   logTaskStatsRow("date time", dateTimeTaskHandle);
-  logTaskStatsRow("high accel", highAccelTaskHandle);
-  logTaskStatsRow("low accel", lowAccelTaskHandle);
+  logTaskStatsRowOnChange("high accel", highAccelTaskHandle, highAccelStats);
+  logTaskStatsRowOnChange("low accel", lowAccelTaskHandle, lowAccelStats);
   logTaskStatsRow("stats", taskStatsLoggerHandle);
 }
 
@@ -106,6 +263,8 @@ static void TaskStatsLoggerTask(void *pvParameters) {
 }
 
 static String buildStatusPage() {
+  refreshRuntimeUsageSnapshot();
+
   String html;
   html.reserve(2048);
 
@@ -128,7 +287,7 @@ static String buildStatusPage() {
 
   html += "<h2>Tasks</h2><table><tr>"
           "<th>Label</th><th>Name</th><th>State</th>"
-          "<th>Priority</th><th>Stack high water</th></tr>";
+          "<th>Priority</th><th>Stack high water</th><th>CPU</th></tr>";
   addTaskRow(html, "led pattern", ledPatternTaskHandle);
   addTaskRow(html, "brightness", brightnessTaskHandle);
   addTaskRow(html, "morse", morseTaskHandle);

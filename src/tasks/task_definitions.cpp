@@ -17,6 +17,25 @@ VectorFloat gravity;    // [x, y, z]            gravity vector
 
 TaskHandle_t xHighAccelTaskHandle = NULL;
 
+static const int ACCELERATION_THRESHOLD = 500;
+
+static void logAccelerationStateChange(int magnitude) {
+    static bool initialized = false;
+    static bool wasHigh = false;
+
+    const bool isHigh = magnitude > ACCELERATION_THRESHOLD;
+    if (initialized && isHigh == wasHigh) {
+        return;
+    }
+
+    if (initialized) {
+        LOG_INFO("ACCEL", "%s acceleration, magnitude=%d", isHigh ? "High" : "Low", magnitude);
+    }
+
+    wasHigh = isHigh;
+    initialized = true;
+}
+
 /**
  * LED Pattern Task
  * 
@@ -157,15 +176,14 @@ void BrightnessControlTask(void *pvParameters) {
         
         unsigned long execTime = micros() - startTime;
         
-        // Throttle sensor logs so task stats stay readable.
-        static unsigned long lastPrint = 0;
-        if (millis() - lastPrint >= BRIGHTNESS_LOG_PERIOD_MS) {
+        static int lastBrightness = -1;
+        if (lastBrightness < 0 || abs(brightness - lastBrightness) >= BRIGHTNESS_LOG_CHANGE_THRESHOLD) {
             LOG_DEBUG("BRIGHTNESS",
                       "Pot=%d, Brightness=%d, ExecTime=%lu us",
                       potValue,
                       brightness,
                       execTime);
-            lastPrint = millis();
+            lastBrightness = brightness;
         }
     }
 }
@@ -321,16 +339,16 @@ void vHighAccelTask(void *pvParameters)
 {
     
     for(;;) {
-        if ( aaReal.getMagnitude() < 500 ) {
+        if ( aaReal.getMagnitude() < ACCELERATION_THRESHOLD ) {
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-            Serial.println("High Accel Task activated");
         }
         if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetAccel(&aa, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            Serial.println(aaReal.getMagnitude());
+            const int magnitude = aaReal.getMagnitude();
+            logAccelerationStateChange(magnitude);
         }
         vTaskDelay(pdMS_TO_TICKS(HIGH_ACCEL_PERIOD_MS));
     }
@@ -346,8 +364,9 @@ void vLowAccelTask(void *pvParameters)
             mpu.dmpGetAccel(&aa, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            Serial.println(aaReal.getMagnitude());
-            if ( aaReal.getMagnitude() > 500 ) {
+            const int magnitude = aaReal.getMagnitude();
+            logAccelerationStateChange(magnitude);
+            if (magnitude > ACCELERATION_THRESHOLD) {
                 xTaskNotifyGive(xHighAccelTaskHandle);
             }
         }
