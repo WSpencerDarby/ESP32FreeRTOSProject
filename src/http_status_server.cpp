@@ -5,6 +5,7 @@
 #include <esp_http_server.h>
 #include "config/config.h"
 #include "app_logger.h"
+#include "task_metrics.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -144,121 +145,80 @@ static void refreshRuntimeUsageSnapshot() {
   portEXIT_CRITICAL(&runtimeStatsMux);
 }
 
-static void addTaskRow(String &html, const char *label, TaskHandle_t task) {
-  html += "<tr><td>";
-  html += label;
-  html += "</td>";
-
-  if (task == nullptr) {
-    html += "<td colspan=\"5\">not started</td></tr>";
+static void addTimingRow(String &html, TaskMetricId id, TaskHandle_t task) {
+  TaskTimingSnapshot snapshot = {};
+  if (!getTaskTimingSnapshot(id, snapshot)) {
     return;
   }
 
-  html += "<td>";
-  html += pcTaskGetName(task);
+  html += "<tr><td>";
+  html += snapshot.label;
+  html += "</td><td class=\"num\">";
+  html += snapshot.periodMs == 0 ? String("event") : String(snapshot.periodMs);
+  html += "</td><td class=\"num\">";
+  html += snapshot.samples;
+  html += "</td><td class=\"num\">";
+  html += snapshot.deadlineMisses;
+  html += "</td><td class=\"num\">";
+  html += task == nullptr ? String("0.0%") : String(getTaskCpuPercent(task), 1) + "%";
   html += "</td><td>";
-  html += stateName(eTaskGetState(task));
+  html += task == nullptr ? String("not started") : stateName(eTaskGetState(task));
   html += "</td><td class=\"num\">";
-  html += static_cast<unsigned>(uxTaskPriorityGet(task));
+  html += snapshot.lastExecUs;
   html += "</td><td class=\"num\">";
-  html += static_cast<unsigned>(uxTaskGetStackHighWaterMark(task));
+  html += snapshot.avgExecUs;
   html += "</td><td class=\"num\">";
-  html += String(getTaskCpuPercent(task), 1);
-  html += "%";
+  html += snapshot.maxExecUs;
+  html += "</td><td class=\"num\">";
+  html += snapshot.lastJitterUs;
+  html += "</td><td class=\"num\">";
+  html += snapshot.avgAbsJitterUs;
+  html += "</td><td class=\"num\">";
+  html += snapshot.maxAbsJitterUs;
   html += "</td></tr>";
 }
 
-static void logTaskStatsRow(const char *label, TaskHandle_t task) {
-  if (task == nullptr) {
-    LOG_WARN("TASK_STATS", "%s not started", label);
+static void logTimingStatsRow(TaskMetricId id, TaskHandle_t task) {
+  TaskTimingSnapshot snapshot = {};
+  if (!getTaskTimingSnapshot(id, snapshot) || snapshot.samples == 0) {
     return;
   }
 
-  LOG_INFO("TASK_STATS",
-           "%s name=%s state=%s prio=%u stack_free=%u cpu=%.1f%%",
-           label,
-           pcTaskGetName(task),
-           stateName(eTaskGetState(task)),
-           static_cast<unsigned>(uxTaskPriorityGet(task)),
-           static_cast<unsigned>(uxTaskGetStackHighWaterMark(task)),
-           getTaskCpuPercent(task));
+  LOG_INFO("SCHED_STATS",
+           "task=%s period_ms=%u samples=%u deadline_miss=%u cpu_pct=%.1f state=%s exec_us_last=%u exec_us_avg=%u exec_us_max=%u jitter_us_last=%d jitter_us_avg_abs=%u jitter_us_max_abs=%u",
+           snapshot.label,
+           snapshot.periodMs,
+           snapshot.samples,
+           snapshot.deadlineMisses,
+           getTaskCpuPercent(task),
+           task == nullptr ? "not_started" : stateName(eTaskGetState(task)),
+           snapshot.lastExecUs,
+           snapshot.avgExecUs,
+           snapshot.maxExecUs,
+           snapshot.lastJitterUs,
+           snapshot.avgAbsJitterUs,
+           snapshot.maxAbsJitterUs);
 }
 
-struct LoggedTaskStats {
-  bool initialized;
-  bool started;
-  eTaskState state;
-  unsigned priority;
-  unsigned stackFree;
-  float cpuPercent;
-};
-
-static void logTaskStatsRowOnChange(const char *label, TaskHandle_t task, LoggedTaskStats &last) {
-  if (task == nullptr) {
-    if (!last.initialized || last.started) {
-      LOG_WARN("TASK_STATS", "%s not started", label);
-    }
-
-    last = {true, false, eDeleted, 0, 0};
-    return;
-  }
-
-  const eTaskState state = eTaskGetState(task);
-  const unsigned priority = static_cast<unsigned>(uxTaskPriorityGet(task));
-  const unsigned stackFree = static_cast<unsigned>(uxTaskGetStackHighWaterMark(task));
-  const float cpuPercent = getTaskCpuPercent(task);
-
-  if (last.initialized &&
-      last.started &&
-      last.state == state &&
-      last.priority == priority &&
-      last.stackFree == stackFree &&
-      last.cpuPercent == cpuPercent) {
-    return;
-  }
-
-  LOG_INFO("TASK_STATS",
-           "%s name=%s state=%s prio=%u stack_free=%u cpu=%.1f%%",
-           label,
-           pcTaskGetName(task),
-           stateName(state),
-           priority,
-           stackFree,
-           cpuPercent);
-
-  last = {true, true, state, priority, stackFree, cpuPercent};
-}
-
-static void logTaskStatsSnapshot() {
-  static LoggedTaskStats brightnessStats = {};
-  static LoggedTaskStats highAccelStats = {};
-  static LoggedTaskStats lowAccelStats = {};
-
+static void logTimingStatsSnapshot() {
   refreshRuntimeUsageSnapshot();
-
-  LOG_INFO("TASK_STATS",
-           "uptime=%lus heap=%u tasks=%u",
-           millis() / 1000UL,
-           static_cast<unsigned>(ESP.getFreeHeap()),
-           static_cast<unsigned>(uxTaskGetNumberOfTasks()));
-  logTaskStatsRow("led", ledPatternTaskHandle);
-  logTaskStatsRowOnChange("brightness", brightnessTaskHandle, brightnessStats);
-  logTaskStatsRow("morse", morseTaskHandle);
-  logTaskStatsRow("date time", dateTimeTaskHandle);
-  logTaskStatsRowOnChange("high accel", highAccelTaskHandle, highAccelStats);
-  logTaskStatsRowOnChange("low accel", lowAccelTaskHandle, lowAccelStats);
-  logTaskStatsRow("stats", taskStatsLoggerHandle);
+  logTimingStatsRow(TaskMetricId::LedPattern, ledPatternTaskHandle);
+  logTimingStatsRow(TaskMetricId::Brightness, brightnessTaskHandle);
+  logTimingStatsRow(TaskMetricId::Morse, morseTaskHandle);
+  logTimingStatsRow(TaskMetricId::DateTime, dateTimeTaskHandle);
+  logTimingStatsRow(TaskMetricId::HighAccel, highAccelTaskHandle);
+  logTimingStatsRow(TaskMetricId::LowAccel, lowAccelTaskHandle);
 }
 
-static void TaskStatsLoggerTask(void *pvParameters) {
+static void SchedulerLoggerTask(void *pvParameters) {
   (void)pvParameters;
 
   TickType_t lastWakeTime = xTaskGetTickCount();
-  const TickType_t period = pdMS_TO_TICKS(TASK_STATS_LOG_PERIOD_MS);
+  const TickType_t period = pdMS_TO_TICKS(SCHED_STATS_LOG_PERIOD_MS);
 
   while (true) {
     vTaskDelayUntil(&lastWakeTime, period);
-    logTaskStatsSnapshot();
+    logTimingStatsSnapshot();
   }
 }
 
@@ -266,11 +226,11 @@ static String buildStatusPage() {
   refreshRuntimeUsageSnapshot();
 
   String html;
-  html.reserve(2048);
+  html.reserve(4096);
 
   html += "<!doctype html><html><head><meta name=\"viewport\" "
           "content=\"width=device-width,initial-scale=1\">";
-  html += "<title>ESP32 Status</title>";
+  html += "<title>ESP32 Scheduler Timing</title>";
   html += "<style>"
           "body{font-family:Arial,sans-serif;margin:24px}"
           "table{border-collapse:collapse;margin:16px 0}"
@@ -278,24 +238,25 @@ static String buildStatusPage() {
           "th{background:#eee}.num{text-align:right}"
           "</style></head><body>";
 
-  html += "<h1>ESP32 Status</h1><table>";
+  html += "<h1>ESP32 Scheduler Timing</h1><table>";
   addMetricRow(html, "IP", WiFi.localIP().toString());
   addMetricRow(html, "Uptime", String(millis() / 1000UL) + " s");
   addMetricRow(html, "Free heap", String(ESP.getFreeHeap()) + " bytes");
   addMetricRow(html, "Task count", String(uxTaskGetNumberOfTasks()));
   html += "</table>";
 
-  html += "<h2>Tasks</h2><table><tr>"
-          "<th>Label</th><th>Name</th><th>State</th>"
-          "<th>Priority</th><th>Stack high water</th><th>CPU</th></tr>";
-  addTaskRow(html, "led pattern", ledPatternTaskHandle);
-  addTaskRow(html, "brightness", brightnessTaskHandle);
-  addTaskRow(html, "morse", morseTaskHandle);
-  addTaskRow(html, "date time", dateTimeTaskHandle);
-  addTaskRow(html, "high accel", highAccelTaskHandle);
-  addTaskRow(html, "low accel", lowAccelTaskHandle);
-  addTaskRow(html, "stats logger", taskStatsLoggerHandle);
-  addTaskRow(html, "http", xTaskGetCurrentTaskHandle());
+  html += "<h2>Scheduler Timing</h2><table><tr>"
+          "<th>Task</th><th>Period ms</th><th>Samples</th>"
+          "<th>Deadline misses</th><th>CPU</th><th>State</th><th>Last exec us</th>"
+          "<th>Avg exec us</th><th>Max exec us</th>"
+          "<th>Last jitter us</th><th>Avg abs jitter us</th>"
+          "<th>Max abs jitter us</th></tr>";
+  addTimingRow(html, TaskMetricId::LedPattern, ledPatternTaskHandle);
+  addTimingRow(html, TaskMetricId::Brightness, brightnessTaskHandle);
+  addTimingRow(html, TaskMetricId::Morse, morseTaskHandle);
+  addTimingRow(html, TaskMetricId::DateTime, dateTimeTaskHandle);
+  addTimingRow(html, TaskMetricId::HighAccel, highAccelTaskHandle);
+  addTimingRow(html, TaskMetricId::LowAccel, lowAccelTaskHandle);
   html += "</table></body></html>";
 
   return html;
@@ -320,7 +281,7 @@ void connectToWifi() {
   }
 
   Serial.println();
-  LOG_INFO("WIFI", "ESP32 IP address: %s", WiFi.localIP().toString().c_str());
+  Serial.printf("ESP32 IP address: %s\n", WiFi.localIP().toString().c_str());
 }
 
 void setStatusTaskHandles(TaskHandle_t ledPatternTask,
@@ -347,7 +308,7 @@ void startHttpStatusServer() {
   config.task_priority = 1;
 
   if (httpd_start(&server, &config) != ESP_OK) {
-    LOG_ERROR("HTTP", "HTTP status server failed to start");
+    Serial.println("HTTP status server failed to start");
     server = nullptr;
     return;
   }
@@ -358,8 +319,8 @@ void startHttpStatusServer() {
   root.handler = handleRoot;
   httpd_register_uri_handler(server, &root);
 
-  LOG_INFO("HTTP", "HTTP status server: http://%s/", WiFi.localIP().toString().c_str());
-  LOG_INFO("LOG", "UDP logs: %s:%u", LOG_UDP_TARGET_HOST, LOG_UDP_TARGET_PORT);
+  Serial.printf("HTTP status server: http://%s/\n", WiFi.localIP().toString().c_str());
+  Serial.printf("UDP scheduler logs: %s:%u\n", LOG_UDP_TARGET_HOST, LOG_UDP_TARGET_PORT);
 }
 
 void startTaskStatsLogger() {
@@ -367,14 +328,14 @@ void startTaskStatsLogger() {
     return;
   }
 
-  xTaskCreatePinnedToCore(TaskStatsLoggerTask,
-                          "TaskStatsLogger",
-                          TASK_STATS_LOG_TASK_STACK_SIZE,
+  xTaskCreatePinnedToCore(SchedulerLoggerTask,
+                          "SchedulerLogger",
+                          SCHED_STATS_LOG_TASK_STACK_SIZE,
                           nullptr,
-                          TASK_STATS_LOG_TASK_PRIORITY,
+                          SCHED_STATS_LOG_TASK_PRIORITY,
                           &taskStatsLoggerHandle,
-                          TASK_STATS_LOG_TASK_CORE);
+                          SCHED_STATS_LOG_TASK_CORE);
 
-  LOG_INFO("TASK_STATS", "Task stats logging every %u ms", TASK_STATS_LOG_PERIOD_MS);
-  logTaskStatsSnapshot();
+  Serial.printf("Scheduler logging every %u ms\n", SCHED_STATS_LOG_PERIOD_MS);
+  logTimingStatsSnapshot();
 }

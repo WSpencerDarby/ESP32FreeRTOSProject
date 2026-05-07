@@ -35,14 +35,14 @@
 #define SCL_PIN 20
 #define SDA_PIN 22
 
-#define LOG_MESSAGE_MAX_LENGTH 128
+#define LOG_MESSAGE_MAX_LENGTH 256
 #define LOG_UDP_TARGET_HOST "255.255.255.255"
 #define LOG_UDP_TARGET_PORT 4210
 #define LOG_UDP_LOCAL_PORT 4211
-#define TASK_STATS_LOG_PERIOD_MS 5000
-#define TASK_STATS_LOG_TASK_PRIORITY 1
-#define TASK_STATS_LOG_TASK_STACK_SIZE 3072
-#define TASK_STATS_LOG_TASK_CORE 1
+#define SCHED_STATS_LOG_PERIOD_MS 5000
+#define SCHED_STATS_LOG_TASK_PRIORITY 1
+#define SCHED_STATS_LOG_TASK_STACK_SIZE 3072
+#define SCHED_STATS_LOG_TASK_CORE 1
 #define BRIGHTNESS_LOG_PERIOD_MS 30000
 #define BRIGHTNESS_LOG_CHANGE_THRESHOLD 8
 
@@ -68,11 +68,11 @@
 #define LOW_ACCEL_STACK_SIZE         4096
 #define HIGH_ACCEL_STACK_SIZE        4096
 
-// Task Core Assignment (ESP32 has cores 0 and 1) I think only thingspeak should be on core 1.
+// Task Core Assignment (ESP32 has cores 0 and 1)
 #define LED_PATTERN_TASK_CORE        0  // Button handling on core 0
-#define BRIGHTNESS_TASK_CORE         0  // Analog reading on core 0
+#define BRIGHTNESS_TASK_CORE         1  // Analog/PWM workload on core 1
 #define MORSE_TASK_CORE              0  // Timing-critical on core 0
-#define DATETIME_TASK_CORE           0  // date/time on core 0
+#define DATETIME_TASK_CORE           1  // Network time formatting on core 1
 #define LOW_ACCEL_TASK_CORE          0  // low accel on core 0
 #define HIGH_ACCEL_TASK_CORE         0  // high accel on core 0
 

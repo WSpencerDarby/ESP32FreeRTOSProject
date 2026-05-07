@@ -2,7 +2,7 @@
 #include "task_definitions.h"
 #include "http_status_server.h"
 #include "config/config.h"
-#include "app_logger.h"
+#include "task_metrics.h"
 
 MPU6050 mpu(MPU6050_DEVADDR_DEFAULT);
 int devStatus;
@@ -25,9 +25,9 @@ void setup() {
 
   devStatus = mpu.dmpInitialize();
   
-  LOG_INFO("MAIN", "ESP32 FreeRTOS Multi-Task Demo");
-  LOG_INFO("MAIN", "Running on ESP32 with %d cores", portNUM_PROCESSORS);
-  LOG_INFO("MAIN", "Tasks: LED Pattern, Brightness Control, Morse Code");
+  Serial.println("ESP32 FreeRTOS scheduler timing demo");
+  Serial.printf("Running on ESP32 with %d cores\n", portNUM_PROCESSORS);
+  Serial.println("Tasks: LED Pattern, Brightness Control, Morse Code, Date Time, Accel");
   if (devStatus == 0) {
     // Calibration Time: generate offsets and calibrate our MPU6050
     mpu.CalibrateAccel(6);
@@ -47,6 +47,7 @@ void setup() {
   }
 
   connectToWifi();
+  initTaskTimingMetrics();
   
   // Create tasks and pin them to specific cores
   TaskHandle_t ledPatternTaskHandle = nullptr;
@@ -129,8 +130,8 @@ void setup() {
   startHttpStatusServer();
   startTaskStatsLogger();
   
-  LOG_INFO("MAIN", "All tasks created successfully");
-  LOG_INFO("MAIN", "System running");
+  Serial.println("All tasks created successfully");
+  Serial.println("System running");
 }
 
 

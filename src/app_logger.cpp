@@ -81,7 +81,7 @@ void logMessage(LogLevel level, const char *tag, const char *message) {
   char line[LOG_MESSAGE_MAX_LENGTH + 64];
   snprintf(line,
            sizeof(line),
-           "[%10lu] %-5s %-15s %s",
+           "%lu\t%s\t%s\t%s",
            millis(),
            levelName(level),
            tag,

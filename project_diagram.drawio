@@ -1,11 +1,11 @@
 <mxfile host="Electron" agent="OpenAI">
   <diagram id="esp32-wiring-v3" name="ESP32 Wiring">
-    <mxGraphModel dx="1499" dy="1059" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1300" pageHeight="900" math="0" shadow="0">
+    <mxGraphModel dx="1614" dy="1540" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1300" pageHeight="900" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;" value="ESP32 Multi-Task Hardware Wiring Diagram" vertex="1">
-          <mxGeometry height="35" width="700" x="300" y="20" as="geometry" />
+          <mxGeometry height="35" width="700" x="288" y="-74" as="geometry" />
         </mxCell>
         <mxCell id="leftGround" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;verticalLabelPosition=top;verticalAlign=middle;rotation=0;" value="" vertex="1">
           <mxGeometry height="620" width="24" x="100" y="35.5" as="geometry" />

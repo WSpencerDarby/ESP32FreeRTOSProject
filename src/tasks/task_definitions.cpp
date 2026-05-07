@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "task_definitions.h"
 #include "../config/config.h"
-#include "app_logger.h"
+#include "task_metrics.h"
 
 // Global variable for button state (shared between tasks if needed)
 static volatile int currentPattern = 0;
@@ -26,10 +26,6 @@ static void logAccelerationStateChange(int magnitude) {
     const bool isHigh = magnitude > ACCELERATION_THRESHOLD;
     if (initialized && isHigh == wasHigh) {
         return;
-    }
-
-    if (initialized) {
-        LOG_INFO("ACCEL", "%s acceleration, magnitude=%d", isHigh ? "High" : "Low", magnitude);
     }
 
     wasHigh = isHigh;
@@ -65,7 +61,9 @@ void LEDPatternTask(void *pvParameters) {
     const int PATTERN_DELAY = 200;  // ms between pattern steps
     
     while (1) {
+        const TickType_t expectedWake = xLastWakeTime + xFrequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        const TickType_t actualWake = xTaskGetTickCount();
         unsigned long startTime = micros();
         
         // Check button (with simple debouncing)
@@ -73,7 +71,6 @@ void LEDPatternTask(void *pvParameters) {
         if (buttonState == LOW && lastButtonState == HIGH) {
             currentPattern = (currentPattern + 1) % 5;
             patternStep = 0;
-            LOG_INFO("LED_PATTERN", "Changed to pattern %d", currentPattern);
             vTaskDelay(pdMS_TO_TICKS(50));  // Simple debounce
         }
         lastButtonState = buttonState;
@@ -136,7 +133,11 @@ void LEDPatternTask(void *pvParameters) {
         }
         
         unsigned long execTime = micros() - startTime;
-        // Collect timing data for performance analysis
+        recordPeriodicTaskTiming(TaskMetricId::LedPattern,
+                                 expectedWake,
+                                 actualWake,
+                                 xFrequency,
+                                 execTime);
     }
 }
 
@@ -159,7 +160,9 @@ void BrightnessControlTask(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(BRIGHTNESS_PERIOD_MS);
     
     while (1) {
+        const TickType_t expectedWake = xLastWakeTime + xFrequency;
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        const TickType_t actualWake = xTaskGetTickCount();
         unsigned long startTime = micros();
         
         // Read potentiometer (0-4095 for 12-bit ADC)
@@ -176,15 +179,11 @@ void BrightnessControlTask(void *pvParameters) {
         
         unsigned long execTime = micros() - startTime;
         
-        static int lastBrightness = -1;
-        if (lastBrightness < 0 || abs(brightness - lastBrightness) >= BRIGHTNESS_LOG_CHANGE_THRESHOLD) {
-            LOG_DEBUG("BRIGHTNESS",
-                      "Pot=%d, Brightness=%d, ExecTime=%lu us",
-                      potValue,
-                      brightness,
-                      execTime);
-            lastBrightness = brightness;
-        }
+        recordPeriodicTaskTiming(TaskMetricId::Brightness,
+                                 expectedWake,
+                                 actualWake,
+                                 xFrequency,
+                                 execTime);
     }
 }
 
@@ -204,8 +203,6 @@ void MorseCodeTask(void *pvParameters) {
     
     while (1) {
         unsigned long startTime = micros();
-        
-        LOG_INFO("MORSE", "Sending SOS");
         
         // Send "SOS"
         for (int i = 0; i < 3; i++) {  // Repeat 3 times for demo
@@ -251,7 +248,7 @@ void MorseCodeTask(void *pvParameters) {
         }
         
         unsigned long execTime = micros() - startTime;
-        LOG_INFO("MORSE", "SOS sequence completed, ExecTime=%lu us", execTime);
+        recordCycleTaskTiming(TaskMetricId::Morse, 0, execTime);
         
         // Wait before repeating
         vTaskDelay(pdMS_TO_TICKS(3000));
@@ -280,8 +277,15 @@ void DateTimeTask(void *pvParameters) {
     String timeZone;
 
     configTime(0, 0, ntpServer);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(DATETIME_PERIOD_MS);
 
     while(1) {
+        const TickType_t expectedWake = xLastWakeTime + xFrequency;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        const TickType_t actualWake = xTaskGetTickCount();
+        unsigned long startTime = micros();
+
         //Set the UTC/GMT Offset (in seconds)
         switch(currentPattern){
             case 1:
@@ -315,7 +319,12 @@ void DateTimeTask(void *pvParameters) {
         time_t now = time(nullptr);
         if (now < 24 * 60 * 60) {
             Serial.println("No time available");
-            vTaskDelay(pdMS_TO_TICKS(DATETIME_PERIOD_MS));
+            unsigned long execTime = micros() - startTime;
+            recordPeriodicTaskTiming(TaskMetricId::DateTime,
+                                     expectedWake,
+                                     actualWake,
+                                     xFrequency,
+                                     execTime);
             continue;
         }
 
@@ -328,8 +337,12 @@ void DateTimeTask(void *pvParameters) {
         Serial.println(timeZone);
         Serial.println("=====================================\n");
 
-        // Wait before repeating
-        vTaskDelay(pdMS_TO_TICKS(DATETIME_PERIOD_MS));
+        unsigned long execTime = micros() - startTime;
+        recordPeriodicTaskTiming(TaskMetricId::DateTime,
+                                 expectedWake,
+                                 actualWake,
+                                 xFrequency,
+                                 execTime);
 
     }
 
@@ -342,6 +355,7 @@ void vHighAccelTask(void *pvParameters)
         if ( aaReal.getMagnitude() < ACCELERATION_THRESHOLD ) {
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         }
+        unsigned long startTime = micros();
         if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetAccel(&aa, fifoBuffer);
@@ -350,15 +364,22 @@ void vHighAccelTask(void *pvParameters)
             const int magnitude = aaReal.getMagnitude();
             logAccelerationStateChange(magnitude);
         }
+        unsigned long execTime = micros() - startTime;
+        recordCycleTaskTiming(TaskMetricId::HighAccel, HIGH_ACCEL_PERIOD_MS, execTime);
         vTaskDelay(pdMS_TO_TICKS(HIGH_ACCEL_PERIOD_MS));
     }
 }
 
 void vLowAccelTask(void *pvParameters)
 {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(LOW_ACCEL_PERIOD_MS);
 
     for(;;) {
-        vTaskDelay(pdMS_TO_TICKS(LOW_ACCEL_PERIOD_MS));
+        const TickType_t expectedWake = xLastWakeTime + xFrequency;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        const TickType_t actualWake = xTaskGetTickCount();
+        unsigned long startTime = micros();
         if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetAccel(&aa, fifoBuffer);
@@ -370,6 +391,12 @@ void vLowAccelTask(void *pvParameters)
                 xTaskNotifyGive(xHighAccelTaskHandle);
             }
         }
+        unsigned long execTime = micros() - startTime;
+        recordPeriodicTaskTiming(TaskMetricId::LowAccel,
+                                 expectedWake,
+                                 actualWake,
+                                 xFrequency,
+                                 execTime);
         taskYIELD();
     }
 
