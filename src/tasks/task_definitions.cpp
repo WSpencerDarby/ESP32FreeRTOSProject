@@ -158,15 +158,14 @@ void LEDPatternTask(void *pvParameters) {
  * - Speaker volume via PWM duty cycle
  */
 void BrightnessControlTask(void *pvParameters) {
-    // Setup PWM for LED
     ledcAttach(PWM_LED_PIN, PWM_FREQ, PWM_RESOLUTION);
-    
-    
-    // Setup PWM for speaker
     ledcAttach(SPEAKER_PIN, SPEAKER_FREQ, PWM_RESOLUTION);
     
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(BRIGHTNESS_PERIOD_MS);
+
+    int lastLoggedBrightness = -1;
+    unsigned long lastLogTime = 0;
     
     while (1) {
         const TickType_t expectedWake = xLastWakeTime + xFrequency;
@@ -180,11 +179,18 @@ void BrightnessControlTask(void *pvParameters) {
         // Map to 8-bit PWM (0-255)
         int brightness = map(potValue, 0, 4095, 0, 255);
         
-        // Set LED brightness
         ledcWrite(PWM_LED_PIN, brightness);
-        
-        // Set speaker volume (same value)
         ledcWrite(SPEAKER_PIN, brightness);
+
+        const unsigned long now = millis();
+        const bool significantChange = abs(brightness - lastLoggedBrightness) >= BRIGHTNESS_LOG_CHANGE_THRESHOLD;
+        const bool periodicLog = (now - lastLogTime) >= BRIGHTNESS_LOG_PERIOD_MS;
+
+        if (lastLoggedBrightness < 0 || significantChange || periodicLog) {
+            LOG_INFO("BRIGHTNESS", "level=%d pot_raw=%d", brightness, potValue);
+            lastLoggedBrightness = brightness;
+            lastLogTime = now;
+        }
         
         unsigned long execTime = micros() - startTime;
         

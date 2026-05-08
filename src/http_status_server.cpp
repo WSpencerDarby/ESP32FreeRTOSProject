@@ -230,6 +230,7 @@ static String buildStatusPage() {
 
   html += "<!doctype html><html><head><meta name=\"viewport\" "
           "content=\"width=device-width,initial-scale=1\">";
+  html += "<meta http-equiv=\"refresh\" content=\"5\">";
   html += "<title>ESP32 Scheduler Timing</title>";
   html += "<style>"
           "body{font-family:Arial,sans-serif;margin:24px}"
