@@ -13,7 +13,7 @@ A multi-task FreeRTOS firmware for the **Adafruit Feather ESP32 V2** that demons
 - **JSON REST API** at `/api/status` machine-readable snapshot of all task metrics, queryable by scripts or external tools
 - **UDP log streaming** all log messages broadcast over UDP for real-time monitoring from a PC
 - **LED patterns** 5 modes cycled by a button (off, sequential, alternating, wave, all blink)
-- **Brightness control** — potentiometer sets PWM LED brightness and speaker volume, with change logging
+- **Brightness control** potentiometer sets PWM LED brightness and speaker volume, with change logging
 - **Morse code** SOS transmitted on a dedicated LED and buzzer
 - **NTP time display** current date/time printed to Serial with timezone selection
 
