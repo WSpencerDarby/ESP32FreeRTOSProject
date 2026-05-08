@@ -8,14 +8,14 @@ A multi-task FreeRTOS firmware for the **Adafruit Feather ESP32 V2** that demons
 
 - **7 concurrent FreeRTOS tasks** pinned across both ESP32 cores with distinct priorities and periods
 - **MPU6050 DMP** for orientation and linear acceleration measurement
-- **Two-tier acceleration detection** — a low-frequency polling task notifies a high-priority task when movement crosses a threshold
-- **Live HTTP dashboard** at `/` — auto-refreshes every 5 seconds with per-task CPU%, execution time, jitter, and deadline misses
-- **JSON REST API** at `/api/status` — machine-readable snapshot of all task metrics, queryable by scripts or external tools
-- **UDP log streaming** — all log messages broadcast over UDP for real-time monitoring from a PC
-- **LED patterns** — 5 modes cycled by a button (off, sequential, alternating, wave, all blink)
+- **Two-tier acceleration detection** a low-frequency polling task notifies a high-priority task when movement crosses a threshold
+- **Live HTTP dashboard** at `/` auto-refreshes every 5 seconds with per-task CPU%, execution time, jitter, and deadline misses
+- **JSON REST API** at `/api/status` machine-readable snapshot of all task metrics, queryable by scripts or external tools
+- **UDP log streaming** all log messages broadcast over UDP for real-time monitoring from a PC
+- **LED patterns** 5 modes cycled by a button (off, sequential, alternating, wave, all blink)
 - **Brightness control** — potentiometer sets PWM LED brightness and speaker volume, with change logging
-- **Morse code** — SOS transmitted on a dedicated LED and buzzer
-- **NTP time display** — current date/time printed to Serial with timezone selection
+- **Morse code** SOS transmitted on a dedicated LED and buzzer
+- **NTP time display** current date/time printed to Serial with timezone selection
 
 ---
 
