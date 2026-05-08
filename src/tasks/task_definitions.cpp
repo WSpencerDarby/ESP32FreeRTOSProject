@@ -2,6 +2,7 @@
 #include "task_definitions.h"
 #include "../config/config.h"
 #include "task_metrics.h"
+#include "app_logger.h"
 
 // Global variable for button state (shared between tasks if needed)
 static volatile int currentPattern = 0;
@@ -30,6 +31,14 @@ static void logAccelerationStateChange(int magnitude) {
 
     wasHigh = isHigh;
     initialized = true;
+
+    if (isHigh) {
+        LOG_WARN("ACCEL", "High acceleration detected: magnitude=%d threshold=%d",
+                 magnitude, ACCELERATION_THRESHOLD);
+    } else {
+        LOG_INFO("ACCEL", "Acceleration returned to normal: magnitude=%d threshold=%d",
+                 magnitude, ACCELERATION_THRESHOLD);
+    }
 }
 
 /**

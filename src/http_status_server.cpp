@@ -238,7 +238,9 @@ static String buildStatusPage() {
           "th{background:#eee}.num{text-align:right}"
           "</style></head><body>";
 
-  html += "<h1>ESP32 Scheduler Timing</h1><table>";
+  html += "<h1>ESP32 Scheduler Timing</h1>";
+  html += "<p style=\"margin:0 0 12px\">JSON API: <a href=\"/api/status\">/api/status</a></p>";
+  html += "<table>";
   addMetricRow(html, "IP", WiFi.localIP().toString());
   addMetricRow(html, "Uptime", String(millis() / 1000UL) + " s");
   addMetricRow(html, "Free heap", String(ESP.getFreeHeap()) + " bytes");
@@ -260,6 +262,77 @@ static String buildStatusPage() {
   html += "</table></body></html>";
 
   return html;
+}
+
+static String buildStatusJson() {
+  refreshRuntimeUsageSnapshot();
+
+  struct TaskEntry {
+    TaskMetricId id;
+    TaskHandle_t *handle;
+  };
+
+  const TaskEntry tasks[] = {
+    {TaskMetricId::LedPattern, &ledPatternTaskHandle},
+    {TaskMetricId::Brightness, &brightnessTaskHandle},
+    {TaskMetricId::Morse,      &morseTaskHandle},
+    {TaskMetricId::DateTime,   &dateTimeTaskHandle},
+    {TaskMetricId::HighAccel,  &highAccelTaskHandle},
+    {TaskMetricId::LowAccel,   &lowAccelTaskHandle},
+  };
+
+  String json;
+  json.reserve(2048);
+  json += "{";
+  json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+  json += "\"uptime_s\":" + String(millis() / 1000UL) + ",";
+  json += "\"free_heap\":" + String(ESP.getFreeHeap()) + ",";
+  json += "\"task_count\":" + String(uxTaskGetNumberOfTasks()) + ",";
+  json += "\"tasks\":[";
+
+  bool first = true;
+  for (const auto &entry : tasks) {
+    TaskTimingSnapshot snapshot = {};
+    if (!getTaskTimingSnapshot(entry.id, snapshot)) {
+      continue;
+    }
+    if (!first) {
+      json += ",";
+    }
+    first = false;
+
+    TaskHandle_t h = *entry.handle;
+    json += "{";
+    json += "\"name\":\"" + String(snapshot.label) + "\",";
+    json += "\"period_ms\":" + String(snapshot.periodMs) + ",";
+    json += "\"samples\":" + String(snapshot.samples) + ",";
+    json += "\"deadline_misses\":" + String(snapshot.deadlineMisses) + ",";
+    json += "\"cpu_pct\":" + String(getTaskCpuPercent(h), 1) + ",";
+    json += "\"state\":\"" + String(h == nullptr ? "not_started" : stateName(eTaskGetState(h))) + "\",";
+    json += "\"exec_us\":{";
+    json += "\"last\":" + String(snapshot.lastExecUs) + ",";
+    json += "\"avg\":" + String(snapshot.avgExecUs) + ",";
+    json += "\"max\":" + String(snapshot.maxExecUs);
+    json += "},";
+    json += "\"jitter_us\":{";
+    json += "\"last\":" + String(snapshot.lastJitterUs) + ",";
+    json += "\"avg_abs\":" + String(snapshot.avgAbsJitterUs) + ",";
+    json += "\"max_abs\":" + String(snapshot.maxAbsJitterUs);
+    json += "}";
+    json += "}";
+  }
+
+  json += "]}";
+  return json;
+}
+
+static esp_err_t handleApiStatus(httpd_req_t *request) {
+  const String json = buildStatusJson();
+  httpd_resp_set_type(request, "application/json");
+  httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
+  esp_err_t result = httpd_resp_send(request, json.c_str(), json.length());
+  vTaskDelay(pdMS_TO_TICKS(10));
+  return result;
 }
 
 static esp_err_t handleRoot(httpd_req_t *request) {
@@ -319,7 +392,14 @@ void startHttpStatusServer() {
   root.handler = handleRoot;
   httpd_register_uri_handler(server, &root);
 
+  httpd_uri_t apiStatus = {};
+  apiStatus.uri = "/api/status";
+  apiStatus.method = HTTP_GET;
+  apiStatus.handler = handleApiStatus;
+  httpd_register_uri_handler(server, &apiStatus);
+
   Serial.printf("HTTP status server: http://%s/\n", WiFi.localIP().toString().c_str());
+  Serial.printf("JSON API:           http://%s/api/status\n", WiFi.localIP().toString().c_str());
   Serial.printf("UDP scheduler logs: %s:%u\n", LOG_UDP_TARGET_HOST, LOG_UDP_TARGET_PORT);
 }
 
